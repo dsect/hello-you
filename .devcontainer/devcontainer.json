@@ -1,0 +1,14 @@
+{
+  "name": "Hello You Web App",
+  "image": "mcr.microsoft.com/devcontainers/typescript-node:1-22-bookworm",
+  "features": {},
+  "containerEnv": {},
+  "postCreateCommand": "cd apps/web && npm install",
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "bash"
+      }
+    }
+  }
+}

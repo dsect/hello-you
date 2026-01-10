@@ -1,0 +1,13 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "pwa-chrome",
+      "request": "launch",
+      "name": "Launch Chrome against localhost:5174",
+      "url": "http://localhost:5174",
+      "preLaunchTask": "npm: dev",
+      "webRoot": "${workspaceFolder}/apps/web"
+    }
+  ]
+}
