@@ -6,7 +6,7 @@
   },
   "containerEnv": {},
   "postCreateCommand": "npm install supabase && cd apps/web && npm install && ([ -f supabase/config.toml ] || npx supabase init --yes)",
-  "postStartCommand": "npx supabase start",
+  "postStartCommand": "npx supabase stop 2>/dev/null || true && npx supabase start",
   "customizations": {
     "vscode": {
       "extensions": [
