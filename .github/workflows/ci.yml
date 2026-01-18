@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, ci-testing]
   pull_request:
     branches: [main]
 
@@ -14,12 +14,48 @@ jobs:
         working-directory: apps/web
     steps:
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
-      
+
       - name: Use Node.js 22
         uses: actions/setup-node@395ad3262231945c25e8478fd5baf05154b1d79f # v6.1.0
         with:
           node-version: 22
-      - run: npm install
+
+      - name: Install root dependencies
+        run: |
+          cd ..
+          npm install
+
+      - name: Install web app dependencies
+        run: npm install
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps
+
+      - name: Setup Supabase for testing
+        run: |
+          # For CI, we'll use a test database approach
+          # This could be a hosted Supabase test project or local setup
+          echo "VITE_SUPABASE_URL=${{ secrets.SUPABASE_TEST_URL || 'http://127.0.0.1:54321' }}" >> $GITHUB_ENV
+          echo "VITE_SUPABASE_ANON_KEY=${{ secrets.SUPABASE_TEST_ANON_KEY || 'test-key' }}" >> $GITHUB_ENV
+
       - run: npm run format:check
       - run: npm run lint
       - run: npm run build
+
+      - name: Run unit tests
+        run: npm test
+
+      - name: Run Playwright tests
+        run: npx playwright test
+        env:
+          VITE_SUPABASE_URL: ${{ env.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ env.VITE_SUPABASE_ANON_KEY }}
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results
+          path: |
+            test-results/
+            playwright-report/
