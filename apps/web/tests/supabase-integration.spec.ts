@@ -20,9 +20,9 @@ test.describe('Supabase Integration Tests', () => {
     const testButton = page.locator('button:has-text("Test Supabase Connection")');
     await testButton.click();
 
-    // Wait for the status to update
+    // Wait for the status to update (may take longer in headless mode)
     const statusElement = page.locator('p').filter({ hasText: /Status:/ });
-    await expect(statusElement).toBeVisible();
+    await expect(statusElement).toBeVisible({ timeout: 10000 });
 
     // Should show either "Connected" or connection status
     await expect(statusElement).toContainText(/Status:/);
@@ -38,5 +38,17 @@ test.describe('Supabase Integration Tests', () => {
     // Counter should increment
     const newText = await counterButton.textContent();
     expect(newText).not.toBe(initialText);
+  });
+
+  // Skip slow/network tests in CI
+  test.skip(process.env.CI === 'true', 'should handle network timeouts gracefully', async ({ page }) => {
+    // This test might be too slow for CI
+    const testButton = page.locator('button:has-text("Test Supabase Connection")');
+    await testButton.click();
+
+    // Wait for potential timeout scenarios
+    await page.waitForTimeout(5000);
+    const statusElement = page.locator('p').filter({ hasText: /Status:/ });
+    await expect(statusElement).toBeVisible();
   });
 });
