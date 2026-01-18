@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
-import App from '../App';
+import App from './App';
 
 describe('App', () => {
   it('renders the app title', () => {
@@ -28,11 +28,5 @@ describe('App', () => {
     // Click again
     fireEvent.click(button);
     expect(button).toHaveTextContent('count is 2');
-  });
-
-  it('renders Supabase connection test button', () => {
-    render(<App />);
-    const testButton = screen.getByRole('button', { name: /Test Supabase Connection/i });
-    expect(testButton).toBeInTheDocument();
   });
 });

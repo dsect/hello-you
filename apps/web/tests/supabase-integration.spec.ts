@@ -10,22 +10,29 @@ test.describe('Supabase Integration Tests', () => {
     // Check that the app loaded
     await expect(page.locator('h1')).toContainText('Vite + React + Supabase');
 
-    // Check for the test button
-    const testButton = page.locator('button:has-text("Test Supabase Connection")');
-    await expect(testButton).toBeVisible();
+    // Wait for loading to complete and database test section to appear
+    const dbTestHeading = page.locator('h2').filter({ hasText: 'Database Connection Test' });
+    await expect(dbTestHeading).toBeVisible({ timeout: 10000 });
+
+    // Check for success message
+    const successMessage = page.locator('p').filter({ hasText: '✅ Connected to Supabase successfully' });
+    await expect(successMessage).toBeVisible();
   });
 
-  test('should test Supabase connection', async ({ page }) => {
-    // Click the test button
-    const testButton = page.locator('button:has-text("Test Supabase Connection")');
-    await testButton.click();
+  test('should test data refresh functionality', async ({ page }) => {
+    // Wait for initial data to load
+    const dbTestHeading = page.locator('h2').filter({ hasText: 'Database Connection Test' });
+    await expect(dbTestHeading).toBeVisible({ timeout: 10000 });
 
-    // Wait for the status to update (may take longer in headless mode)
-    const statusElement = page.locator('p').filter({ hasText: /Status:/ });
-    await expect(statusElement).toBeVisible({ timeout: 10000 });
+    // Check that we have some users loaded
+    await expect(page.locator('text=Alice Johnson')).toBeVisible();
 
-    // Should show either "Connected" or connection status
-    await expect(statusElement).toContainText(/Status:/);
+    // Click the refresh button
+    const refreshButton = page.locator('button:has-text("Refresh Data")');
+    await refreshButton.click();
+
+    // Data should still be visible after refresh
+    await expect(page.locator('text=Alice Johnson')).toBeVisible();
   });
 
   test('should have working navigation and UI', async ({ page }) => {
@@ -50,5 +57,25 @@ test.describe('Supabase Integration Tests', () => {
     await page.waitForTimeout(5000);
     const statusElement = page.locator('p').filter({ hasText: /Status:/ });
     await expect(statusElement).toBeVisible();
+  });
+
+  // Test actual database operations with seeded data
+  test('should interact with seeded database data', async ({ page }) => {
+    // Wait for the database test section to load
+    const dbTestHeading = page.locator('h2').filter({ hasText: 'Database Connection Test' });
+    await expect(dbTestHeading).toBeVisible({ timeout: 15000 });
+
+    // Check that seeded users are displayed
+    await expect(page.locator('text=Alice Johnson')).toBeVisible();
+    await expect(page.locator('text=Bob Smith')).toBeVisible();
+    await expect(page.locator('text=Charlie Brown')).toBeVisible();
+
+    // Check that seeded posts are displayed
+    await expect(page.locator('text=Welcome Post')).toBeVisible();
+    await expect(page.locator('text=Another Post')).toBeVisible();
+    await expect(page.locator('text=Third Post')).toBeVisible();
+
+    // Should connect successfully with seeded database
+    await expect(page.locator('text=Connected to Supabase successfully')).toBeVisible();
   });
 });
