@@ -6,6 +6,9 @@
   "postCreateCommand": "cd apps/web && npm install",
   "customizations": {
     "vscode": {
+      "extensions": [
+        "ms-vscode.vscode-github-actions"
+      ],
       "settings": {
         "terminal.integrated.defaultProfile.linux": "bash"
       }
