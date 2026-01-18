@@ -1,9 +1,12 @@
 {
   "name": "Hello You Web App",
   "image": "mcr.microsoft.com/devcontainers/typescript-node:1-22-bookworm",
-  "features": {},
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {}
+  },
   "containerEnv": {},
-  "postCreateCommand": "cd apps/web && npm install",
+  "postCreateCommand": "npm install supabase && cd apps/web && npm install && ([ -f supabase/config.toml ] || npx supabase init --yes)",
+  "postStartCommand": "npx supabase start",
   "customizations": {
     "vscode": {
       "extensions": [
