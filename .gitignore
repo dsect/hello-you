@@ -1,3 +1,9 @@
+# Supabase
+supabase/.branches
+supabase/.temp
+apps/web/supabase/.branches
+apps/web/supabase/.temp
+
 # Logs
 logs
 
