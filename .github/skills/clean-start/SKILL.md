@@ -16,3 +16,13 @@ git clean -fdX
 ```
 
 This will delete all ignored and untracked files and folders. Use with caution.
+
+## Step 2: Reinstall all dependencies from scratch
+
+After cleaning, reinstall all dependencies for each project or workspace. For a monorepo, run the appropriate install command in each app directory (e.g., `npm install` in apps/web).
+
+**Recommended command (from each app directory):**
+
+```sh
+cd apps/web && npm install
+```
