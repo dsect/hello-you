@@ -26,3 +26,18 @@ After cleaning, reinstall all dependencies for each project or workspace. For a 
 ```sh
 cd apps/web && npm install
 ```
+
+## Step 3: Reset Supabase to a true zero state
+
+To ensure your local Supabase environment is completely fresh (no leftover data or config), you must stop all running services and delete all local database and storage volumes. The Supabase CLI does not provide a single command to fully wipe all data, so you must use Docker commands to remove the volumes after stopping Supabase.
+
+**Recommended commands (from the repo root):**
+
+```sh
+npx supabase stop
+docker volume ls --filter label=com.supabase.cli.project=web
+docker volume rm supabase_db_web supabase_storage_web
+npx supabase start
+```
+
+This sequence stops Supabase, lists the Docker volumes used for your project, deletes them to remove all data, and then starts Supabase again with a brand new, empty environment. If the CLI adds a `db reset` command in the future, prefer that for simplicity.
