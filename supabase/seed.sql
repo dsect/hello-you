@@ -1,14 +1,10 @@
--- Seed test data for CI/CD testing
+INSERT INTO click_events (event_type)
+SELECT 'page_load'
+WHERE NOT EXISTS (SELECT 1 FROM click_events WHERE event_type = 'page_load');
 
--- Seed test data
-INSERT INTO test_users (name, email) VALUES
-  ('Alice Johnson', 'alice@example.com'),
-  ('Bob Smith', 'bob@example.com'),
-  ('Charlie Brown', 'charlie@example.com')
-ON CONFLICT (email) DO NOTHING;
-
-INSERT INTO test_posts (title, content, user_id) VALUES
-  ('Welcome Post', 'This is a test post for our application.', 1),
-  ('Another Post', 'Testing the post functionality.', 2),
-  ('Third Post', 'More test content here.', 1)
-ON CONFLICT DO NOTHING;
+INSERT INTO click_events (event_type)
+SELECT 'button_click'
+WHERE NOT EXISTS (SELECT 1 FROM click_events WHERE event_type = 'button_click');
+-- Seed event types for dropdown
+-- This is not used to insert into click_events, but to provide the list of types
+-- If you want to seed click_events, add logic here, but for now, keep empty for a true zero start
