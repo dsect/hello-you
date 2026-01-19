@@ -43,8 +43,10 @@ jobs:
       - name: Start Supabase (local dev)
         run: npx supabase start
 
-      - name: Run Playwright tests (e2e)
+      - name: Install Playwright browsers and dependencies
+        run: npx playwright install --with-deps
+
+      - name: Run all Playwright tests (e2e)
         run: |
-          npx playwright install --with-deps
           npm run dev &
-          npx playwright test tests/supabase-connection.spec.ts
+          npx playwright test
