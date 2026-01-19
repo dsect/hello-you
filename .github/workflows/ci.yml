@@ -20,11 +20,31 @@ jobs:
         with:
           node-version: 22
 
+      - name: Cache npm dependencies
+        uses: actions/cache@8b402f58fbc84540c8b491a91e594a4576fec3d7 # v5.0.2
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
+
       - name: Install dependencies
         run: npm install
+
       - name: Check formatting
         run: npm run format:check
+
       - name: Lint
         run: npm run lint
+
       - name: Build
         run: npm run build
+
+      - name: Start Supabase (local dev)
+        run: npx supabase start
+
+      - name: Run Playwright tests (e2e)
+        run: |
+          npx playwright install --with-deps
+          npm run dev &
+          npx playwright test tests/supabase-connection.spec.ts
