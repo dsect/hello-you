@@ -20,13 +20,11 @@ jobs:
         with:
           node-version: 22
 
-      - name: Install root dependencies
-        run: |
-          cd ..
-          npm install
-
-      - name: Install web app dependencies
+      - name: Install dependencies
         run: npm install
-      - run: npm run format:check
-      - run: npm run lint
-      - run: npm run build
+      - name: Check formatting
+        run: npm run format:check
+      - name: Lint
+        run: npm run lint
+      - name: Build
+        run: npm run build
