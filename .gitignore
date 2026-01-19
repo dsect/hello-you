@@ -1,3 +1,8 @@
+# Test results and reports
+apps/web/test-results/
+apps/web/playwright-report/
+apps/web/coverage/
+
 # Supabase
 supabase/.branches
 supabase/.temp

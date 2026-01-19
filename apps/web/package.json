@@ -8,8 +8,7 @@
     "build": "tsc && vite build",
     "lint": "eslint . --max-warnings 0",
     "format": "prettier --write .",
-    "format:check": "prettier --check .",
-    "preview": "vite preview"
+    "format:check": "prettier --check ."
   },
   "dependencies": {
     "@tailwindcss/postcss": "^4.1.18",
@@ -20,6 +19,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
+    "@supabase/supabase-js": "^2.39.3",
     "@types/node": "^25.0.5",
     "@types/react": "^19.2.5",
     "@types/react-dom": "^19.2.3",

@@ -5,7 +5,7 @@
     "ghcr.io/devcontainers/features/docker-in-docker:2": {}
   },
   "containerEnv": {},
-  "postCreateCommand": "npm install supabase && cd apps/web && npm install && ([ -f supabase/config.toml ] || npx supabase init --yes)",
+  "postCreateCommand": "npm install supabase && cd apps/web && npm install && ([ -f supabase/config.toml ] || npx supabase init --yes) && npx playwright install-deps",
   "postStartCommand": "npx supabase stop 2>/dev/null || true && npx supabase start",
   "customizations": {
     "vscode": {

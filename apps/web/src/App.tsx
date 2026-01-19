@@ -1,34 +1,39 @@
-import { useState } from "react";
-import reactLogo from "./assets/react.svg";
-import viteLogo from "/vite.svg";
+import { useEffect, useState } from "react";
 import "./App.css";
 
 function App() {
-  const [count, setCount] = useState(0);
+  const [connectionStatus, setConnectionStatus] = useState<
+    null | "ok" | "fail"
+  >(null);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        // Try a simple fetch to the REST API root, which always works if Supabase is up
+        const url =
+          import.meta.env.VITE_SUPABASE_URL || "http://127.0.0.1:54321";
+        const res = await fetch(url + "/rest/v1/", { method: "GET" });
+        setConnectionStatus(res.ok ? "ok" : "fail");
+      } catch {
+        setConnectionStatus("fail");
+      }
+    })();
+  }, []);
 
   return (
-    <>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
+    <div style={{ maxWidth: 500, margin: "2rem auto", padding: 16 }}>
+      <h1>Vite + React + Supabase</h1>
+      <div style={{ marginBottom: 16 }}>
+        <b>Supabase connection status: </b>
+        {connectionStatus === null && <span>Checking...</span>}
+        {connectionStatus === "ok" && (
+          <span style={{ color: "green" }}>Connected</span>
+        )}
+        {connectionStatus === "fail" && (
+          <span style={{ color: "red" }}>Not connected</span>
+        )}
       </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.tsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
-    </>
+    </div>
   );
 }
 

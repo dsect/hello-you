@@ -1,5 +1,5 @@
 {
-  "dependencies": {
-    "supabase": "^2.72.8"
+  "scripts": {
+    "seed": "npx supabase db reset --local"
   }
 }
