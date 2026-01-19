@@ -1,5 +1,0 @@
-{
-  "scripts": {
-    "seed": "npx supabase db reset --local"
-  }
-}
