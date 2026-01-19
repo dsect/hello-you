@@ -41,3 +41,17 @@ npx supabase start
 ```
 
 This sequence stops Supabase, lists the Docker volumes used for your project, deletes them to remove all data, and then starts Supabase again with a brand new, empty environment. If the CLI adds a `db reset` command in the future, prefer that for simplicity.
+
+## Step 4: Run end-to-end Playwright tests
+
+To verify that your app works after a clean start, run your Playwright end-to-end tests. This ensures the frontend can connect to Supabase and the full stack is operational from zero.
+
+**Recommended commands (from apps/web):**
+
+```sh
+npx playwright install --with-deps
+npm run dev &
+npx playwright test
+```
+
+This will install Playwright browsers and dependencies, start the app server, and run all Playwright tests headlessly. Review the test results to confirm everything is working as expected.

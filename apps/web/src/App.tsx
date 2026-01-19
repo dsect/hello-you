@@ -23,7 +23,7 @@ function App() {
   return (
     <div style={{ maxWidth: 500, margin: "2rem auto", padding: 16 }}>
       <h1>Vite + React + Supabase</h1>
-      <div style={{ marginBottom: 16 }}>
+      <div style={{ marginBottom: 16 }} data-testid="supabase-status">
         <b>Supabase connection status: </b>
         {connectionStatus === null && <span>Checking...</span>}
         {connectionStatus === "ok" && (
