@@ -8,7 +8,9 @@
     "build": "tsc && vite build",
     "lint": "eslint . --max-warnings 0",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "start:supabase": "npx supabase start",
+    "playwright:e2e": "npx playwright test"
   },
   "dependencies": {
     "@tailwindcss/postcss": "^4.1.18",
