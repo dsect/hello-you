@@ -14,6 +14,13 @@ interface StateSelection {
   selected_at: string;
 }
 
+interface StateVisit {
+  id: number;
+  state_code: string;
+  visited_at: string;
+  notes: string | null;
+}
+
 function App() {
   const [connectionStatus, setConnectionStatus] = useState<
     null | "ok" | "fail"
@@ -21,7 +28,9 @@ function App() {
   const [states, setStates] = useState<USState[]>([]);
   const [selectedStates, setSelectedStates] = useState<string[]>([]);
   const [savedSelections, setSavedSelections] = useState<StateSelection[]>([]);
+  const [stateVisits, setStateVisits] = useState<StateVisit[]>([]);
   const [loading, setLoading] = useState(false);
+  const [visitNotes, setVisitNotes] = useState<{ [key: string]: string }>({});
 
   useEffect(() => {
     (async () => {
@@ -35,6 +44,7 @@ function App() {
         if (res.ok) {
           await loadStates();
           await loadSelections();
+          await loadVisits();
         }
       } catch {
         setConnectionStatus("fail");
@@ -62,6 +72,67 @@ function App() {
     if (!error && data) {
       setSavedSelections(data);
     }
+  };
+
+  const loadVisits = async () => {
+    const { data, error } = await supabase
+      .from("state_visits")
+      .select("*")
+      .order("visited_at", { ascending: false });
+
+    if (!error && data) {
+      setStateVisits(data);
+    }
+  };
+
+  const isStateVisited = (stateCode: string) => {
+    return stateVisits.some((visit) => visit.state_code === stateCode);
+  };
+
+  const handleToggleVisit = async (code: string) => {
+    const existingVisit = stateVisits.find((v) => v.state_code === code);
+
+    if (existingVisit) {
+      // Remove visit
+      const { error } = await supabase
+        .from("state_visits")
+        .delete()
+        .eq("state_code", code);
+
+      if (!error) {
+        await loadVisits();
+        setVisitNotes((prev) => {
+          const newNotes = { ...prev };
+          delete newNotes[code];
+          return newNotes;
+        });
+      }
+    } else {
+      // Add visit
+      const { error } = await supabase.from("state_visits").insert({
+        state_code: code,
+        visited_at: new Date().toISOString(),
+        notes: visitNotes[code] || null,
+      });
+
+      if (!error) {
+        await loadVisits();
+        setVisitNotes((prev) => {
+          const newNotes = { ...prev };
+          delete newNotes[code];
+          return newNotes;
+        });
+      }
+    }
+  };
+
+  const formatVisitDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
   };
 
   const handleStateToggle = (code: string) => {
@@ -121,32 +192,100 @@ function App() {
               }}
               data-testid="states-list"
             >
-              {states.map((state) => (
-                <label
-                  key={state.code}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 8,
-                    padding: 8,
-                    border: "1px solid #ccc",
-                    borderRadius: 4,
-                    cursor: "pointer",
-                    backgroundColor: selectedStates.includes(state.code)
-                      ? "#e3f2fd"
-                      : "white",
-                  }}
-                  data-testid={`state-option-${state.code}`}
-                >
-                  <input
-                    type="checkbox"
-                    checked={selectedStates.includes(state.code)}
-                    onChange={() => handleStateToggle(state.code)}
-                    data-testid={`state-checkbox-${state.code}`}
-                  />
-                  <span>{state.name}</span>
-                </label>
-              ))}
+              {states.map((state) => {
+                const visited = isStateVisited(state.code);
+                return (
+                  <div
+                    key={state.code}
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 4,
+                      padding: 8,
+                      border: "1px solid #ccc",
+                      borderRadius: 4,
+                      backgroundColor: visited
+                        ? "#e8f5e9"
+                        : selectedStates.includes(state.code)
+                          ? "#e3f2fd"
+                          : "white",
+                    }}
+                    data-testid={`state-option-${state.code}`}
+                  >
+                    <label
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 8,
+                        cursor: "pointer",
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedStates.includes(state.code)}
+                        onChange={() => handleStateToggle(state.code)}
+                        data-testid={`state-checkbox-${state.code}`}
+                      />
+                      <span>{state.name}</span>
+                      {visited && (
+                        <span
+                          data-testid={`visited-indicator-${state.code}`}
+                          style={{ color: "green", fontSize: "12px" }}
+                        >
+                          ✓
+                        </span>
+                      )}
+                    </label>
+                    <button
+                      onClick={() => handleToggleVisit(state.code)}
+                      style={{
+                        padding: "4px 8px",
+                        fontSize: 12,
+                        backgroundColor: visited ? "#ff9800" : "#4caf50",
+                        color: "white",
+                        border: "none",
+                        borderRadius: 4,
+                        cursor: "pointer",
+                      }}
+                      data-testid={`mark-visited-button-${state.code}`}
+                    >
+                      {visited ? "Unmark" : "Mark as Visited"}
+                    </button>
+                    {!visited && (
+                      <input
+                        type="text"
+                        placeholder="Add notes (optional)"
+                        value={visitNotes[state.code] || ""}
+                        onChange={(e) =>
+                          setVisitNotes((prev) => ({
+                            ...prev,
+                            [state.code]: e.target.value,
+                          }))
+                        }
+                        style={{
+                          padding: "4px 8px",
+                          fontSize: 12,
+                          border: "1px solid #ccc",
+                          borderRadius: 4,
+                        }}
+                        data-testid={`visit-notes-input-${state.code}`}
+                      />
+                    )}
+                    {visited && (
+                      <span
+                        data-testid={`visit-date-${state.code}`}
+                        style={{ fontSize: 11, color: "#666" }}
+                      >
+                        Visited{" "}
+                        {formatVisitDate(
+                          stateVisits.find((v) => v.state_code === state.code)
+                            ?.visited_at || "",
+                        )}
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
             </div>
 
             <button
@@ -168,6 +307,52 @@ function App() {
                 ? "Saving..."
                 : `Save ${selectedStates.length} Selection${selectedStates.length !== 1 ? "s" : ""}`}
             </button>
+          </section>
+
+          <section style={{ marginBottom: 24 }}>
+            <h2>Visited States</h2>
+            <div data-testid="visited-list">
+              {stateVisits.length === 0 ? (
+                <p style={{ color: "#666" }}>No states visited yet.</p>
+              ) : (
+                <ul style={{ listStyle: "none", padding: 0 }}>
+                  {stateVisits.map((visit) => {
+                    const state = states.find(
+                      (s) => s.code === visit.state_code,
+                    );
+                    return (
+                      <li
+                        key={visit.id}
+                        style={{
+                          padding: 8,
+                          marginBottom: 8,
+                          border: "1px solid #e0e0e0",
+                          borderRadius: 4,
+                          backgroundColor: "#f9f9f9",
+                        }}
+                        data-testid={`visited-item-${visit.id}`}
+                      >
+                        <strong>{state?.name || visit.state_code}</strong> -{" "}
+                        <span data-testid={`visit-date-${visit.id}`}>
+                          {formatVisitDate(visit.visited_at)}
+                        </span>
+                        {visit.notes && (
+                          <div
+                            style={{
+                              marginTop: 4,
+                              fontSize: 14,
+                              color: "#555",
+                            }}
+                          >
+                            {visit.notes}
+                          </div>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </div>
           </section>
 
           <section>
