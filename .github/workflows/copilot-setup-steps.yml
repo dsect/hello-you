@@ -36,8 +36,5 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Start Supabase (local dev)
-        run: npx supabase start
-
       - name: Install Playwright browsers and dependencies
         run: npx playwright install --with-deps
