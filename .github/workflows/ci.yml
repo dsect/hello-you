@@ -40,6 +40,19 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Seed hello-you-dev database
+        env:
+          SUPABASE_DEV_DB_PASSWORD: ${{ secrets.SUPABASE_DEV_DB_PASSWORD }}
+          PGPASSWORD: ${{ secrets.SUPABASE_DEV_DB_PASSWORD }}
+        run: |
+          echo "🌱 Seeding hello-you-dev..."
+          psql "postgresql://postgres.wizxpsdetombktnqtdub:${SUPABASE_DEV_DB_PASSWORD}@aws-0-us-east-1.pooler.supabase.com:6543/postgres" < supabase/seeds/us_states.sql
+
       - name: Set up environment for hello-you-dev
         env:
           VITE_SUPABASE_URL: ${{ secrets.SUPABASE_DEV_URL }}
