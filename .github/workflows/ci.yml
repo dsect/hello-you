@@ -82,9 +82,7 @@ jobs:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: |
           supabase link --project-ref ${{ secrets.SUPABASE_DEV_PROJECT_ID }}
-          # Extract only the public values we need (URL and anon key)
-          # Avoid putting service_role_key or jwt_secret in GITHUB_ENV
-          # Strip quotes from values (supabase outputs quoted strings)
+          # Extract only public values, strip quotes
           BRANCH_ENV=$(supabase --experimental branches get "${{ github.head_ref }}" -o env)
           echo "$BRANCH_ENV" | grep "^SUPABASE_URL=" | sed 's/"//g' >> $GITHUB_ENV
           echo "$BRANCH_ENV" | grep "^SUPABASE_ANON_KEY=" | sed 's/"//g' >> $GITHUB_ENV
@@ -94,37 +92,29 @@ jobs:
         run: |
           echo "VITE_SUPABASE_URL=${SUPABASE_URL}" > .env.local
           echo "VITE_SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}" >> .env.local
-          echo "Preview branch URL: ${SUPABASE_URL}"
-          echo "Anon key length: ${#SUPABASE_ANON_KEY} chars"
 
-      # --- Dev Environment Setup (push to main only) ---
       - name: Set up environment (push to main)
         if: github.event_name == 'push'
         run: |
           echo "VITE_SUPABASE_URL=${{ secrets.SUPABASE_DEV_URL }}" > .env.local
           echo "VITE_SUPABASE_ANON_KEY=${{ secrets.SUPABASE_DEV_ANON_KEY }}" >> .env.local
-          echo "Environment configured for dev main"
+
+      # --- Quick connection test - fails fast, no browser needed ---
+      - name: Test Supabase connection
+        run: |
+          source .env.local
+          export VITE_SUPABASE_URL VITE_SUPABASE_ANON_KEY
+          node scripts/test-supabase-connection.js
 
       # --- E2E Tests ---
       - name: Install Playwright browsers
         run: npx playwright install --with-deps
-
-      - name: Debug environment
-        run: |
-          echo "=== .env.local ==="
-          cat .env.local
-          echo ""
-          echo "=== Testing Supabase REST API directly ==="
-          curl -v "${SUPABASE_URL}/rest/v1/" -H "apikey: ${SUPABASE_ANON_KEY}" 2>&1 | head -50
 
       - name: Start dev server
         run: npm run dev &
 
       - name: Wait for server
         run: sleep 2
-
-      - name: Curl page for debug
-        run: curl -s http://localhost:5174 | head -30
 
       - name: Run Playwright tests
         run: npx playwright test
