@@ -40,8 +40,13 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Start Supabase (local dev)
-        run: npx supabase start
+      - name: Set up environment for hello-you-dev
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.SUPABASE_DEV_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_DEV_ANON_KEY }}
+        run: |
+          echo "VITE_SUPABASE_URL=$VITE_SUPABASE_URL" > .env.local
+          echo "VITE_SUPABASE_ANON_KEY=$VITE_SUPABASE_ANON_KEY" >> .env.local
 
       - name: Install Playwright browsers and dependencies
         run: npx playwright install --with-deps
