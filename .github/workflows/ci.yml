@@ -15,6 +15,7 @@ jobs:
     defaults:
       run:
         working-directory: apps/web
+
     steps:
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
 
@@ -43,52 +44,19 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Setup Supabase CLI
-        uses: supabase/setup-cli@b60b5899c73b63a2d2d651b1e90db8d4c9392f51 # v1.6.0
-        with:
-          version: latest
-
-      # For PRs: Use preview branch (created automatically via GitHub integration)
-      - name: Deploy to preview branch (PR)
+      # ✅ PR → Supabase Preview (credentials injected automatically)
+      - name: Set up environment (PR with preview branch)
         if: github.event_name == 'pull_request'
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DEV_DB_PASSWORD }}
         run: |
-          echo "Deploying to preview branch for PR #${{ github.event.number }}"
-          supabase link --project-ref ${{ secrets.SUPABASE_DEV_PROJECT_ID }}
-          supabase db push --include-seed --branch ${{ github.head_ref }}
-          echo "Preview branch ready"
+          echo "VITE_SUPABASE_URL=${SUPABASE_URL}" > .env.local
+          echo "VITE_SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}" >> .env.local
 
-      # For pushes to main: Deploy to dev main
-      - name: Deploy to dev main (push)
+      # ✅ push → dev environment
+      - name: Set up environment (push to main)
         if: github.event_name == 'push'
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DEV_DB_PASSWORD }}
         run: |
-          echo "Deploying to dev main"
-          supabase link --project-ref ${{ secrets.SUPABASE_DEV_PROJECT_ID }}
-          supabase db push --include-seed
-          echo "Dev main deployed"
-
-      # Set environment variables based on trigger
-      - name: Set up environment for preview branch (PR)
-        if: github.event_name == 'pull_request'
-        run: |
-          # Extract connection details from PR comment (Supabase posts this automatically)
-          # For now, use dev credentials as fallback - you'll update this after testing
           echo "VITE_SUPABASE_URL=${{ secrets.SUPABASE_DEV_URL }}" > .env.local
           echo "VITE_SUPABASE_ANON_KEY=${{ secrets.SUPABASE_DEV_ANON_KEY }}" >> .env.local
-
-      - name: Set up environment for dev main (push)
-        if: github.event_name == 'push'
-        env:
-          VITE_SUPABASE_URL: ${{ secrets.SUPABASE_DEV_URL }}
-          VITE_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_DEV_ANON_KEY }}
-        run: |
-          echo "VITE_SUPABASE_URL=$VITE_SUPABASE_URL" > .env.local
-          echo "VITE_SUPABASE_ANON_KEY=$VITE_SUPABASE_ANON_KEY" >> .env.local
 
       - name: Install Playwright browsers and dependencies
         run: npx playwright install --with-deps
@@ -96,4 +64,5 @@ jobs:
       - name: Run all Playwright tests (e2e)
         run: |
           npm run dev &
+          npx wait-on http://localhost:5173
           npx playwright test
