@@ -6,7 +6,7 @@ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error(
     "Missing Supabase credentials. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in .env.local\n" +
-    "Run ./scripts/local-dev.sh to set up local development."
+      "Run ./scripts/local-dev.sh to set up local development.",
   );
 }
 

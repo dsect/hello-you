@@ -27,7 +27,10 @@ function App() {
     (async () => {
       try {
         // Test connection by querying the Supabase REST API
-        const { error } = await supabase.from("us_states").select("id").limit(1);
+        const { error } = await supabase
+          .from("us_states")
+          .select("id")
+          .limit(1);
         if (error) {
           setConnectionStatus("fail");
         } else {
