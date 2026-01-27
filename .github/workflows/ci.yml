@@ -45,6 +45,15 @@ jobs:
         with:
           version: latest
 
+      - name: Deploy migrations to hello-you-dev
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DEV_DB_PASSWORD }}
+        run: |
+          echo "🚀 Deploying migrations to hello-you-dev..."
+          supabase link --project-ref ${{ secrets.SUPABASE_DEV_PROJECT_ID }}
+          supabase db push
+
       - name: Seed hello-you-dev database
         env:
           SUPABASE_DEV_DB_PASSWORD: ${{ secrets.SUPABASE_DEV_DB_PASSWORD }}
