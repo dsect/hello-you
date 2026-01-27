@@ -11,6 +11,13 @@ create policy "Allow anonymous read access to us_states"
   to anon
   using (true);
 
+-- Allow anonymous insert to us_states (for CI seeding)
+create policy "Allow anonymous insert to us_states"
+  on public.us_states
+  for insert
+  to anon
+  with check (true);
+
 -- Allow anonymous read/insert access to us_state_selections
 create policy "Allow anonymous read access to us_state_selections"
   on public.us_state_selections

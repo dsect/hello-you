@@ -119,38 +119,84 @@ jobs:
             exit 1
           fi
 
-      - name: "Debug 2: Does us_states table exist and have data?"
+      - name: "Debug 2: Check and seed us_states if needed"
         run: |
           source .env.local
           echo "=== CHECKING us_states TABLE ==="
           
-          RESPONSE=$(curl -s \
-            -H "apikey: $VITE_SUPABASE_ANON_KEY" \
-            -H "Authorization: Bearer $VITE_SUPABASE_ANON_KEY" \
-            "$VITE_SUPABASE_URL/rest/v1/us_states?select=count")
-          echo "Query response: $RESPONSE"
-          
-          # Try to get actual count
-          COUNT_RESPONSE=$(curl -s \
-            -H "apikey: $VITE_SUPABASE_ANON_KEY" \
-            -H "Authorization: Bearer $VITE_SUPABASE_ANON_KEY" \
-            -H "Prefer: count=exact" \
-            "$VITE_SUPABASE_URL/rest/v1/us_states?select=*" \
-            -I | grep -i content-range || echo "No content-range header")
-          echo "Content-Range: $COUNT_RESPONSE"
-          
-          # Get first few rows
+          # Get count
           ROWS=$(curl -s \
             -H "apikey: $VITE_SUPABASE_ANON_KEY" \
             -H "Authorization: Bearer $VITE_SUPABASE_ANON_KEY" \
             "$VITE_SUPABASE_URL/rest/v1/us_states?select=id,name,code&limit=5")
-          echo "First 5 rows: $ROWS"
+          echo "Current rows: $ROWS"
           
-          if echo "$ROWS" | grep -q "CA\|TX\|NY"; then
-            echo "✅ us_states table has data!"
+          if echo "$ROWS" | grep -q "CA"; then
+            echo "✅ us_states already has data"
           else
-            echo "❌ us_states table appears empty or inaccessible"
-            echo "Full response: $ROWS"
+            echo "⚠️ us_states is empty, seeding via REST API..."
+            
+            # Seed using REST API
+            SEED_RESPONSE=$(curl -s -w "\nHTTP_CODE:%{http_code}" \
+              -X POST \
+              -H "apikey: $VITE_SUPABASE_ANON_KEY" \
+              -H "Authorization: Bearer $VITE_SUPABASE_ANON_KEY" \
+              -H "Content-Type: application/json" \
+              -H "Prefer: return=minimal" \
+              "$VITE_SUPABASE_URL/rest/v1/us_states" \
+              -d '[
+                {"name":"Alabama","code":"AL"},{"name":"Alaska","code":"AK"},
+                {"name":"Arizona","code":"AZ"},{"name":"Arkansas","code":"AR"},
+                {"name":"California","code":"CA"},{"name":"Colorado","code":"CO"},
+                {"name":"Connecticut","code":"CT"},{"name":"Delaware","code":"DE"},
+                {"name":"Florida","code":"FL"},{"name":"Georgia","code":"GA"},
+                {"name":"Hawaii","code":"HI"},{"name":"Idaho","code":"ID"},
+                {"name":"Illinois","code":"IL"},{"name":"Indiana","code":"IN"},
+                {"name":"Iowa","code":"IA"},{"name":"Kansas","code":"KS"},
+                {"name":"Kentucky","code":"KY"},{"name":"Louisiana","code":"LA"},
+                {"name":"Maine","code":"ME"},{"name":"Maryland","code":"MD"},
+                {"name":"Massachusetts","code":"MA"},{"name":"Michigan","code":"MI"},
+                {"name":"Minnesota","code":"MN"},{"name":"Mississippi","code":"MS"},
+                {"name":"Missouri","code":"MO"},{"name":"Montana","code":"MT"},
+                {"name":"Nebraska","code":"NE"},{"name":"Nevada","code":"NV"},
+                {"name":"New Hampshire","code":"NH"},{"name":"New Jersey","code":"NJ"},
+                {"name":"New Mexico","code":"NM"},{"name":"New York","code":"NY"},
+                {"name":"North Carolina","code":"NC"},{"name":"North Dakota","code":"ND"},
+                {"name":"Ohio","code":"OH"},{"name":"Oklahoma","code":"OK"},
+                {"name":"Oregon","code":"OR"},{"name":"Pennsylvania","code":"PA"},
+                {"name":"Rhode Island","code":"RI"},{"name":"South Carolina","code":"SC"},
+                {"name":"South Dakota","code":"SD"},{"name":"Tennessee","code":"TN"},
+                {"name":"Texas","code":"TX"},{"name":"Utah","code":"UT"},
+                {"name":"Vermont","code":"VT"},{"name":"Virginia","code":"VA"},
+                {"name":"Washington","code":"WA"},{"name":"West Virginia","code":"WV"},
+                {"name":"Wisconsin","code":"WI"},{"name":"Wyoming","code":"WY"}
+              ]')
+            
+            HTTP_CODE=$(echo "$SEED_RESPONSE" | grep "HTTP_CODE:" | cut -d: -f2)
+            BODY=$(echo "$SEED_RESPONSE" | grep -v "HTTP_CODE:")
+            echo "Seed response: $HTTP_CODE"
+            echo "Body: $BODY"
+            
+            if [ "$HTTP_CODE" = "201" ]; then
+              echo "✅ Seeded successfully!"
+            else
+              echo "❌ Seed failed with $HTTP_CODE"
+              echo "This might mean RLS INSERT policy doesn't exist for anon"
+              echo "Continuing anyway to see what happens..."
+            fi
+          fi
+          
+          # Verify final state
+          FINAL=$(curl -s \
+            -H "apikey: $VITE_SUPABASE_ANON_KEY" \
+            -H "Authorization: Bearer $VITE_SUPABASE_ANON_KEY" \
+            "$VITE_SUPABASE_URL/rest/v1/us_states?select=code&limit=5")
+          echo "Final check: $FINAL"
+          
+          if echo "$FINAL" | grep -q "CA"; then
+            echo "✅ us_states has data!"
+          else
+            echo "❌ us_states still empty"
             exit 1
           fi
 
