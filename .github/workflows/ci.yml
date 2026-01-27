@@ -82,15 +82,18 @@ jobs:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: |
           supabase link --project-ref ${{ secrets.SUPABASE_DEV_PROJECT_ID }}
-          supabase --experimental branches get "${{ github.head_ref }}" -o env >> $GITHUB_ENV
+          # Extract only the public values we need (URL and anon key)
+          # Avoid putting service_role_key or jwt_secret in GITHUB_ENV
+          BRANCH_ENV=$(supabase --experimental branches get "${{ github.head_ref }}" -o env)
+          echo "$BRANCH_ENV" | grep "^SUPABASE_URL=" >> $GITHUB_ENV
+          echo "$BRANCH_ENV" | grep "^SUPABASE_ANON_KEY=" >> $GITHUB_ENV
 
       - name: Set up environment (PR)
         if: github.event_name == 'pull_request'
         run: |
           echo "VITE_SUPABASE_URL=${SUPABASE_URL}" > .env.local
           echo "VITE_SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}" >> .env.local
-          echo "Environment configured for preview branch:"
-          cat .env.local
+          echo "Environment configured for preview branch"
 
       # --- Dev Environment Setup (push to main only) ---
       - name: Set up environment (push to main)
