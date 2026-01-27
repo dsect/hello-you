@@ -93,7 +93,8 @@ jobs:
         run: |
           echo "VITE_SUPABASE_URL=${SUPABASE_URL}" > .env.local
           echo "VITE_SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}" >> .env.local
-          echo "Environment configured for preview branch"
+          echo "Preview branch URL: ${SUPABASE_URL}"
+          echo "Anon key length: ${#SUPABASE_ANON_KEY} chars"
 
       # --- Dev Environment Setup (push to main only) ---
       - name: Set up environment (push to main)
@@ -107,25 +108,14 @@ jobs:
       - name: Install Playwright browsers
         run: npx playwright install --with-deps
 
-      - name: Start dev server
-        run: |
-          npm run dev &
-          echo $! > /tmp/dev-server.pid
-          echo "Dev server started with PID $(cat /tmp/dev-server.pid)"
-
-      - name: Wait for dev server
-        run: |
-          echo "Waiting for dev server at http://localhost:5174..."
-          npx wait-on http://localhost:5174 --timeout 30000
-          echo "Dev server is ready"
-
       - name: Run Playwright tests
-        run: npx playwright test
-
-      - name: Stop dev server
-        if: always()
         run: |
-          if [ -f /tmp/dev-server.pid ]; then
-            kill $(cat /tmp/dev-server.pid) 2>/dev/null || true
-            echo "Dev server stopped"
-          fi
+          echo "=== Debug: .env.local ==="
+          grep VITE_SUPABASE_URL .env.local || echo "NO URL SET!"
+          echo ""
+          npm run dev &
+          sleep 2
+          curl -s http://localhost:5174 | head -30
+          npx playwright test
+
+```
