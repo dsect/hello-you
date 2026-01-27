@@ -110,7 +110,12 @@ jobs:
         run: npx playwright install --with-deps
 
       - name: Debug environment
-        run: grep VITE_SUPABASE_URL .env.local || echo "NO URL SET!"
+        run: |
+          echo "=== .env.local ==="
+          cat .env.local
+          echo ""
+          echo "=== Testing Supabase REST API directly ==="
+          curl -v "${SUPABASE_URL}/rest/v1/" -H "apikey: ${SUPABASE_ANON_KEY}" 2>&1 | head -50
 
       - name: Start dev server
         run: npm run dev &
