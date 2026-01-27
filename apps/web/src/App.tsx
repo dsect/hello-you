@@ -26,19 +26,12 @@ function App() {
   useEffect(() => {
     (async () => {
       try {
-        // Try a simple fetch to the REST API root, which always works if Supabase is up
-        const url =
-          import.meta.env.VITE_SUPABASE_URL || "http://127.0.0.1:54321";
-        const key =
-          import.meta.env.VITE_SUPABASE_ANON_KEY ||
-          "sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH";
-        const res = await fetch(url + "/rest/v1/", {
-          method: "GET",
-          headers: { apikey: key },
-        });
-        setConnectionStatus(res.ok ? "ok" : "fail");
-
-        if (res.ok) {
+        // Test connection by querying the Supabase REST API
+        const { error } = await supabase.from("us_states").select("id").limit(1);
+        if (error) {
+          setConnectionStatus("fail");
+        } else {
+          setConnectionStatus("ok");
           await loadStates();
           await loadSelections();
         }
