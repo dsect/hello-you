@@ -108,14 +108,17 @@ jobs:
       - name: Install Playwright browsers
         run: npx playwright install --with-deps
 
-      - name: Run Playwright tests
-        run: |
-          echo "=== Debug: .env.local ==="
-          grep VITE_SUPABASE_URL .env.local || echo "NO URL SET!"
-          echo ""
-          npm run dev &
-          sleep 2
-          curl -s http://localhost:5174 | head -30
-          npx playwright test
+      - name: Debug environment
+        run: grep VITE_SUPABASE_URL .env.local || echo "NO URL SET!"
 
-```
+      - name: Start dev server
+        run: npm run dev &
+
+      - name: Wait for server
+        run: sleep 2
+
+      - name: Curl page for debug
+        run: curl -s http://localhost:5174 | head -30
+
+      - name: Run Playwright tests
+        run: npx playwright test
