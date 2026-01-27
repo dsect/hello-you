@@ -37,6 +37,7 @@ jobs:
           
           # Run seed data
           echo "🌱 Running seed data..."
+          sudo apt-get update && sudo apt-get install -y postgresql-client
           psql "postgresql://postgres.wizxpsdetombktnqtdub:${SUPABASE_DB_PASSWORD}@aws-0-us-east-1.pooler.supabase.com:6543/postgres" < supabase/seeds/us_states.sql
           
           echo "✅ Migrations and seeds deployed successfully to dev environment"

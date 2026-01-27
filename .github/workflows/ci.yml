@@ -1,5 +1,7 @@
 name: CI
 
+run-name: "CI - ${{ github.head_ref || github.ref_name }}"
+
 on:
   push:
     branches: [main]
@@ -7,7 +9,8 @@ on:
     branches: [main]
 
 jobs:
-  build:
+  build-and-test:
+    name: Build and Test
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -60,6 +63,9 @@ jobs:
           PGPASSWORD: ${{ secrets.SUPABASE_DEV_DB_PASSWORD }}
         run: |
           echo "🌱 Seeding hello-you-dev..."
+          # Install postgresql-client for psql
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
           psql "postgresql://postgres.wizxpsdetombktnqtdub:${SUPABASE_DEV_DB_PASSWORD}@aws-0-us-east-1.pooler.supabase.com:6543/postgres" < supabase/seeds/us_states.sql
 
       - name: Set up environment for hello-you-dev
