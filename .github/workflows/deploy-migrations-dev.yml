@@ -1,0 +1,49 @@
+name: Deploy Migrations to Dev
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  deploy-to-dev:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/web
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Deploy migrations to hello-you-dev
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DEV_DB_PASSWORD }}
+        run: |
+          echo "🚀 Deploying migrations to hello-you-dev..."
+          echo "Release: ${{ github.event.release.tag_name }}"
+          
+          # Link to dev project
+          supabase link --project-ref ${{ secrets.SUPABASE_DEV_PROJECT_ID }}
+          
+          # Push migrations
+          supabase db push
+          
+          echo "✅ Migrations deployed successfully to dev environment"
+          echo "🔗 Project URL: https://${{ secrets.SUPABASE_DEV_PROJECT_ID }}.supabase.co"
+
+      - name: Comment on release
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.repos.createReleaseComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              release_id: context.payload.release.id,
+              body: `✅ Database migrations deployed to **hello-you-dev**\n\nReady for testing before production promotion.`
+            })

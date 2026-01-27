@@ -1,0 +1,76 @@
+name: Promote Migrations to Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Release tag to promote (e.g., v1.2.0)'
+        required: true
+        type: string
+      confirm:
+        description: 'Type "PROMOTE" to confirm production deployment'
+        required: true
+        type: string
+
+jobs:
+  promote-to-prod:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/web
+    
+    steps:
+      - name: Validate confirmation
+        run: |
+          if [ "${{ inputs.confirm }}" != "PROMOTE" ]; then
+            echo "❌ Confirmation failed. You must type 'PROMOTE' to proceed."
+            exit 1
+          fi
+
+      - name: Checkout release tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.release_tag }}
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Deploy migrations to hello-you-prod
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_PROD_DB_PASSWORD }}
+        run: |
+          echo "🚀 Promoting migrations to PRODUCTION..."
+          echo "Release: ${{ inputs.release_tag }}"
+          echo ""
+          
+          # Link to prod project
+          supabase link --project-ref ${{ secrets.SUPABASE_PROD_PROJECT_ID }}
+          
+          # Show what will be applied (dry run)
+          echo "📋 Dry run - migrations to be applied:"
+          supabase db push --dry-run || true
+          echo ""
+          
+          # Push migrations
+          echo "⚡ Applying migrations to production..."
+          supabase db push
+          
+          echo ""
+          echo "✅ Migrations deployed successfully to PRODUCTION"
+          echo "🔗 Project URL: https://${{ secrets.SUPABASE_PROD_PROJECT_ID }}.supabase.co"
+
+      - name: Create deployment issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issue = await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `✅ Production Deployment: ${{ inputs.release_tag }}`,
+              body: `Database migrations from release **${{ inputs.release_tag }}** have been successfully deployed to **hello-you-prod**.\n\n**Deployed by:** @${{ github.actor }}\n**Workflow run:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}`,
+              labels: ['deployment', 'production']
+            });
+            console.log(`Created issue #${issue.data.number}`);
