@@ -17,6 +17,11 @@ export default defineConfig({
     headless: true,
     screenshot: "only-on-failure",
   },
+  webServer: {
+    command: "npm run dev",
+    url: "http://localhost:5174",
+    reuseExistingServer: !process.env.CI,
+  },
   projects: [
     {
       name: "chromium",
