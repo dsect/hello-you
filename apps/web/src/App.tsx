@@ -29,7 +29,13 @@ function App() {
         // Try a simple fetch to the REST API root, which always works if Supabase is up
         const url =
           import.meta.env.VITE_SUPABASE_URL || "http://127.0.0.1:54321";
-        const res = await fetch(url + "/rest/v1/", { method: "GET" });
+        const key =
+          import.meta.env.VITE_SUPABASE_ANON_KEY ||
+          "sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH";
+        const res = await fetch(url + "/rest/v1/", {
+          method: "GET",
+          headers: { apikey: key },
+        });
         setConnectionStatus(res.ok ? "ok" : "fail");
 
         if (res.ok) {
