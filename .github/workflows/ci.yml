@@ -44,29 +44,19 @@ jobs:
         run: npm run build
 
       - name: Setup Supabase CLI
-        uses: supabase/setup-cli@v1
+        uses: supabase/setup-cli@b60b5899c73b63a2d2d651b1e90db8d4c9392f51 # v1.6.0
         with:
           version: latest
 
-      - name: Deploy migrations to hello-you-dev
+      - name: Deploy migrations and seed hello-you-dev
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DEV_DB_PASSWORD }}
         run: |
-          echo "🚀 Deploying migrations to hello-you-dev..."
+          echo "Deploying migrations to hello-you-dev"
           supabase link --project-ref ${{ secrets.SUPABASE_DEV_PROJECT_ID }}
-          supabase db push
-
-      - name: Seed hello-you-dev database
-        env:
-          SUPABASE_DEV_DB_PASSWORD: ${{ secrets.SUPABASE_DEV_DB_PASSWORD }}
-          PGPASSWORD: ${{ secrets.SUPABASE_DEV_DB_PASSWORD }}
-        run: |
-          echo "🌱 Seeding hello-you-dev..."
-          # Install postgresql-client for psql
-          sudo apt-get update
-          sudo apt-get install -y postgresql-client
-          psql "postgresql://postgres.wizxpsdetombktnqtdub:${SUPABASE_DEV_DB_PASSWORD}@aws-0-us-east-1.pooler.supabase.com:6543/postgres" < supabase/seeds/us_states.sql
+          supabase db push --include-seed
+          echo "Migrations and seeds deployed successfully"
 
       - name: Set up environment for hello-you-dev
         env:
