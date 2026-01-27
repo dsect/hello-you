@@ -7,7 +7,7 @@ set -euo pipefail
 cd "$(dirname "$0")/../apps/web"
 
 echo "⚠️  This will delete all local data and reset the database"
-read -p "Continue? (y/N): " CONFIRM
+read -r -p "Continue? (y/N): " CONFIRM
 
 if [[ ! "$CONFIRM" =~ ^[Yy]$ ]]; then
     echo "Cancelled"

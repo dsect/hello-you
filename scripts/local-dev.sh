@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Local Supabase Development
-# Starts local Supabase (Docker) and dev server
+# Starts local Supabase (Docker) for local development
 #
 set -euo pipefail
 
@@ -26,7 +26,14 @@ fi
 # Create .env.local if it doesn't exist
 if [ ! -f ".env.local" ]; then
     echo "📝 Creating .env.local..."
-    ANON_KEY=$(npx supabase status --output json | grep -o '"anon_key": *"[^"]*"' | cut -d'"' -f4)
+    STATUS_OUTPUT=$(npx supabase status --output json)
+    ANON_KEY=$(echo "$STATUS_OUTPUT" | grep -o '"anon_key": *"[^"]*"' | cut -d'"' -f4)
+    
+    if [ -z "$ANON_KEY" ]; then
+        echo "❌ Failed to extract anon_key from supabase status. Is Supabase running?"
+        echo "Raw output: $STATUS_OUTPUT"
+        exit 1
+    fi
     
     cat > .env.local << EOF
 # Local Supabase Development
