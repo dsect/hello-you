@@ -26,7 +26,7 @@ function App() {
   useEffect(() => {
     (async () => {
       try {
-        // Test connection by querying the Supabase REST API
+        // Test connection using Supabase client
         const { error } = await supabase
           .from("us_states")
           .select("id")
