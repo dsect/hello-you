@@ -12,7 +12,9 @@ console.log("URL:", url || "NOT SET");
 console.log("Key length:", key ? key.length + " chars" : "NOT SET");
 
 if (!url || !key) {
-  console.error("\n❌ FAIL: Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY");
+  console.error(
+    "\n❌ FAIL: Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY",
+  );
   process.exit(1);
 }
 
