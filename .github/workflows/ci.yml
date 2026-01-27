@@ -87,8 +87,8 @@ jobs:
       - name: Set up environment (PR)
         if: github.event_name == 'pull_request'
         run: |
-          echo "VITE_SUPABASE_URL=${API_URL}" > .env.local
-          echo "VITE_SUPABASE_ANON_KEY=${ANON_KEY}" >> .env.local
+          echo "VITE_SUPABASE_URL=${SUPABASE_URL}" > .env.local
+          echo "VITE_SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}" >> .env.local
           echo "Environment configured for preview branch:"
           cat .env.local
 
