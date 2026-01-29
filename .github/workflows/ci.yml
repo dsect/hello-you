@@ -86,6 +86,28 @@ jobs:
           echo "VITE_SUPABASE_URL=${SUPABASE_URL}" > .env.local
           echo "VITE_SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}" >> .env.local
 
+      - name: Wait for preview branch data to be available
+        if: github.event_name == 'pull_request'
+        run: |
+          echo "Waiting for us_states table to be populated..."
+          for i in {1..30}; do
+            STATES_COUNT=$(curl -s \
+              -H "apikey: ${SUPABASE_ANON_KEY}" \
+              "${SUPABASE_URL}/rest/v1/us_states?select=count" \
+              | grep -o '"count":[0-9]*' | cut -d: -f2)
+            
+            if [[ -n "$STATES_COUNT" && "$STATES_COUNT" -gt 0 ]]; then
+              echo "✓ us_states table populated with $STATES_COUNT states"
+              exit 0
+            fi
+            
+            echo "Waiting for data... (attempt $i/30)"
+            sleep 2
+          done
+          
+          echo "✗ Timeout waiting for us_states table data"
+          exit 1
+
       - name: Set up environment (push to main)
         if: github.event_name == 'push'
         run: |
