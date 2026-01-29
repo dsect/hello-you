@@ -53,9 +53,8 @@ jobs:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: |
           supabase link --project-ref ${{ secrets.SUPABASE_DEV_PROJECT_ID }}
-          # This outputs SUPABASE_URL, SUPABASE_ANON_KEY, etc. as env vars
-          # Will fail naturally if deployment isn't complete
-          supabase --experimental branches get "${{ github.head_ref }}" -o env >> $GITHUB_ENV
+          # Only extract the two credentials needed for tests, nothing else
+          supabase --experimental branches get "${{ github.head_ref }}" -o env | grep -E "^SUPABASE_(URL|ANON_KEY)=" >> $GITHUB_ENV
 
       - name: Set up environment (PR)
         if: github.event_name == 'pull_request'
