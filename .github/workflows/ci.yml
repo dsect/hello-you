@@ -86,26 +86,34 @@ jobs:
           echo "VITE_SUPABASE_URL=${SUPABASE_URL}" > .env.local
           echo "VITE_SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}" >> .env.local
 
-      - name: Wait for preview branch data to be available
+      - name: Wait for preview branch to be ready
         if: github.event_name == 'pull_request'
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: |
-          echo "Waiting for us_states table to be populated..."
-          for i in {1..30}; do
-            STATES_COUNT=$(curl -s \
-              -H "apikey: ${SUPABASE_ANON_KEY}" \
-              "${SUPABASE_URL}/rest/v1/us_states?select=count" \
-              | grep -o '"count":[0-9]*' | cut -d: -f2)
+          echo "Waiting for preview branch services to be healthy..."
+          PROJECT_REF="${{ secrets.SUPABASE_DEV_PROJECT_ID }}"
+          BRANCH_NAME="${{ github.head_ref }}"
+          
+          for i in {1..60}; do
+            # Query Management API for branch status
+            RESPONSE=$(curl -s -X GET \
+              "https://api.supabase.com/v1/projects/${PROJECT_REF}/branches" \
+              -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}")
             
-            if [[ -n "$STATES_COUNT" && "$STATES_COUNT" -gt 0 ]]; then
-              echo "✓ us_states table populated with $STATES_COUNT states"
+            # Find branch with matching name and check if all services are running
+            STATUS=$(echo "$RESPONSE" | jq -r ".branches[] | select(.name == \"${BRANCH_NAME}\") | .status" 2>/dev/null)
+            
+            if [[ "$STATUS" == "active" ]]; then
+              echo "✓ Preview branch is active and ready"
               exit 0
             fi
             
-            echo "Waiting for data... (attempt $i/30)"
+            echo "Branch status: ${STATUS:-pending} (attempt $i/60)"
             sleep 2
           done
           
-          echo "✗ Timeout waiting for us_states table data"
+          echo "✗ Timeout waiting for preview branch to be ready"
           exit 1
 
       - name: Set up environment (push to main)
