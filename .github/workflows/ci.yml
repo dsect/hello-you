@@ -103,17 +103,22 @@ jobs:
           echo "$INFO" | jq . || true
 
           echo "--- Extracting required fields"
-          POSTGRES_URL=$(echo "$INFO" | jq -r .POSTGRES_URL_NON_POOLING)
+          POSTGRES_URL_TRANSACTION=$(echo "$INFO" | jq -r .POSTGRES_URL)
           SUPABASE_URL=$(echo "$INFO" | jq -r .SUPABASE_URL)
           SUPABASE_ANON_KEY=$(echo "$INFO" | jq -r .SUPABASE_ANON_KEY)
 
-          [ -n "$POSTGRES_URL" ] && [ "$POSTGRES_URL" != "null" ] || { echo "Missing POSTGRES_URL from branches get"; exit 1; }
+          [ -n "$POSTGRES_URL_TRANSACTION" ] && [ "$POSTGRES_URL_TRANSACTION" != "null" ] || { echo "Missing POSTGRES_URL from branches get"; exit 1; }
           [ -n "$SUPABASE_URL" ] && [ "$SUPABASE_URL" != "null" ] || { echo "Missing SUPABASE_URL from branches get"; exit 1; }
           [ -n "$SUPABASE_ANON_KEY" ] && [ "$SUPABASE_ANON_KEY" != "null" ] || { echo "Missing SUPABASE_ANON_KEY from branches get"; exit 1; }
 
+          # Convert transaction pooler (port 6543) to session pooler (port 5432) for IPv4 support
+          # Per https://supabase.com/docs/guides/database/connecting-to-postgres
+          # "For application traffic from persistent clients, and support for both IPv4 and IPv6, use pooler session mode"
+          POSTGRES_URL=$(echo "$POSTGRES_URL_TRANSACTION" | sed 's/:6543/:5432/')
+
           # Redacted echo (no secrets leak)
           echo "Derived:"
-          echo "- POSTGRES_URL present: yes"
+          echo "- POSTGRES_URL (session mode) present: yes"
           echo "- SUPABASE_URL: $SUPABASE_URL"
           echo "- SUPABASE_ANON_KEY present: yes"
           echo
