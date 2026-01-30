@@ -138,7 +138,7 @@ jobs:
             exit 1
           fi
           
-          echo "SUPABASE_URL=${SUPABASE_URL}" >> $GITHUB_ENV
+          echo "SUPABASE_URL=https://${BRANCH_REF}.supabase.co" >> $GITHUB_ENV
           echo "SUPABASE_ANON_KEY=${ANON_KEY}" >> $GITHUB_ENV
           echo ""
           echo "✓ Successfully retrieved preview branch credentials"
