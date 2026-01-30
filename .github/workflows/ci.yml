@@ -11,12 +11,9 @@ jobs:
   build-and-test:
     name: Build and Test
     runs-on: ubuntu-latest
-    env:
-      WORKDIR_APP: apps/web
-      WORKDIR_SUPABASE: apps/web/supabase
     defaults:
       run:
-        working-directory: ${{ env.WORKDIR_APP }}
+        working-directory: apps/web
 
     steps:
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
@@ -26,7 +23,7 @@ jobs:
         with:
           node-version: 22
           cache: 'npm'
-          cache-dependency-path: ${{ env.WORKDIR_APP }}/package-lock.json
+          cache-dependency-path: apps/web/package-lock.json
 
       - name: Install dependencies
         run: npm ci
@@ -88,12 +85,11 @@ jobs:
           echo "Repo: ${{ github.repository }}"
           echo "PR branch: $BRANCH_NAME"
           echo "Project ref: $PROJECT_REF"
-          echo "Workdir (app): $WORKDIR_APP"
-          echo "Workdir (supabase): $WORKDIR_SUPABASE"
+          echo "Current directory: $(pwd)"
           echo
 
           echo "--- Supabase config.toml existence"
-          CFG="$WORKDIR_SUPABASE/config.toml"
+          CFG="supabase/config.toml"
           if [ -f "$CFG" ]; then
             echo "Found: $CFG"
             head -n 200 "$CFG" || true
@@ -127,10 +123,10 @@ jobs:
           echo "SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY" >> $GITHUB_ENV
 
           echo "--- Migration files present"
-          if [ -d "$WORKDIR_SUPABASE/migrations" ]; then
-            ls -lah "$WORKDIR_SUPABASE/migrations" || true
+          if [ -d "supabase/migrations" ]; then
+            ls -lah "supabase/migrations" || true
           else
-            echo "No migrations directory at $WORKDIR_SUPABASE/migrations"
+            echo "No migrations directory at supabase/migrations"
           fi
           echo
 
@@ -152,6 +148,7 @@ jobs:
 
       - name: Preview migrations (dry-run) and apply
         if: github.event_name == 'pull_request'
+        working-directory: apps/web/supabase
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: |
@@ -159,26 +156,25 @@ jobs:
           echo "--- supabase db push (dry-run)"
           supabase db push \
             --db-url "$PREVIEW_POSTGRES_URL" \
-            --workdir "$WORKDIR_SUPABASE" \
             --dry-run \
             --yes
 
           echo "--- supabase db push (apply)"
           supabase db push \
             --db-url "$PREVIEW_POSTGRES_URL" \
-            --workdir "$WORKDIR_SUPABASE" \
             --yes
 
       - name: Preview seeds
         if: github.event_name == 'pull_request'
+        working-directory: apps/web/supabase
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: |
           set -euo pipefail
           echo "--- supabase db seed"
-          if ! supabase db seed --db-url "$PREVIEW_POSTGRES_URL" --workdir "$WORKDIR_SUPABASE" --yes; then
+          if ! supabase db seed --db-url "$PREVIEW_POSTGRES_URL" --yes; then
             echo "db seed failed; attempting reset with seed"
-            supabase db reset --db-url "$PREVIEW_POSTGRES_URL" --workdir "$WORKDIR_SUPABASE" --include-seed --yes
+            supabase db reset --db-url "$PREVIEW_POSTGRES_URL" --include-seed --yes
           fi
 
       - name: Preview snapshot AFTER migrations
