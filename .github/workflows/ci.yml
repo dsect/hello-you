@@ -103,7 +103,7 @@ jobs:
           echo "$INFO" | jq . || true
 
           echo "--- Extracting required fields"
-          POSTGRES_URL=$(echo "$INFO" | jq -r .POSTGRES_URL)
+          POSTGRES_URL=$(echo "$INFO" | jq -r .POSTGRES_URL_NON_POOLING)
           SUPABASE_URL=$(echo "$INFO" | jq -r .SUPABASE_URL)
           SUPABASE_ANON_KEY=$(echo "$INFO" | jq -r .SUPABASE_ANON_KEY)
 
