@@ -116,13 +116,9 @@ jobs:
           BRANCH_CONFIG=$(curl -s \
             -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
             "https://api.supabase.com/v1/branches?project_ref=${SUPABASE_PROJECT_REF}" | \
-            jq -r ".[] | select(.git_branch==\"${BRANCH_NAME}\") | {ref, db_host, db_port, db_user, db_pass}")
+            jq -r ".[] | select(.git_branch==\"${BRANCH_NAME}\") | {ref}")
           
           BRANCH_REF=$(echo "$BRANCH_CONFIG" | jq -r '.ref')
-          DB_HOST=$(echo "$BRANCH_CONFIG" | jq -r '.db_host')
-          DB_PORT=$(echo "$BRANCH_CONFIG" | jq -r '.db_port')
-          DB_USER=$(echo "$BRANCH_CONFIG" | jq -r '.db_user')
-          DB_PASS=$(echo "$BRANCH_CONFIG" | jq -r '.db_pass')
           
           if [ "$BRANCH_REF" = "null" ] || [ -z "$BRANCH_REF" ]; then
             echo "Error: Could not find branch $BRANCH_NAME in Supabase"
@@ -130,10 +126,6 @@ jobs:
           fi
           
           echo "Branch ref: $BRANCH_REF"
-          
-          # Build connection string
-          POSTGRES_URL="postgresql://${DB_USER}:${DB_PASS}@${DB_HOST}:${DB_PORT}/postgres"
-          SUPABASE_URL="https://${BRANCH_REF}.supabase.co"
           
           # Get the anon key from the branch's API keys
           ANON_KEY=$(curl -s \
@@ -146,7 +138,6 @@ jobs:
             exit 1
           fi
           
-          echo "POSTGRES_URL_NON_POOLING=${POSTGRES_URL}" >> $GITHUB_ENV
           echo "SUPABASE_URL=${SUPABASE_URL}" >> $GITHUB_ENV
           echo "SUPABASE_ANON_KEY=${ANON_KEY}" >> $GITHUB_ENV
           echo ""
