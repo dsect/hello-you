@@ -115,7 +115,7 @@ jobs:
           set -euo pipefail
           
           BRANCH_NAME="${{ github.head_ref }}"
-          PROJECT_REF="${{ secrets.SUPABASE_PROD_PROJECT_ID }}"
+          PROJECT_REF="${{ secrets.SUPABASE_DEV_PROJECT_ID }}"
           echo "Getting credentials for branch: $BRANCH_NAME"
           
           # Get branch details using Supabase CLI
