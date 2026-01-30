@@ -116,33 +116,56 @@ jobs:
           
           BRANCH_NAME="${{ github.head_ref }}"
           PROJECT_REF="${{ secrets.SUPABASE_DEV_PROJECT_ID }}"
-          echo "Getting credentials for branch: $BRANCH_NAME"
+          
+          echo "============================================"
+          echo "Fetching credentials for preview branch"
+          echo "============================================"
+          echo "Branch name: $BRANCH_NAME"
+          echo "Project ref: $PROJECT_REF"
+          echo ""
           
           # Get branch details using Supabase CLI
+          echo "Running: supabase branches get \"$BRANCH_NAME\" --project-ref \"$PROJECT_REF\" -o json"
           BRANCH_INFO=$(supabase branches get "$BRANCH_NAME" --project-ref "$PROJECT_REF" -o json)
-          BRANCH_REF=$(echo "$BRANCH_INFO" | jq -r '.ref')
           
-          if [ "$BRANCH_REF" = "null" ] || [ -z "$BRANCH_REF" ]; then
-            echo "Error: Could not find branch $BRANCH_NAME"
-            echo "Branch info returned: $BRANCH_INFO"
+          echo ""
+          echo "Raw response from supabase branches get:"
+          echo "$BRANCH_INFO" | jq '.'
+          echo ""
+          
+          # Extract SUPABASE_URL directly from the response
+          SUPABASE_URL=$(echo "$BRANCH_INFO" | jq -r '.SUPABASE_URL')
+          echo "Extracted SUPABASE_URL: $SUPABASE_URL"
+          
+          if [ "$SUPABASE_URL" = "null" ] || [ -z "$SUPABASE_URL" ]; then
+            echo ""
+            echo "ERROR: Could not extract SUPABASE_URL from response"
+            echo "Expected JSON to have .SUPABASE_URL field"
+            echo "Available keys in response:"
+            echo "$BRANCH_INFO" | jq -r 'keys[]'
             exit 1
           fi
           
-          echo "Branch ref: $BRANCH_REF"
-          
-          # Get API keys using Supabase CLI
-          API_KEYS=$(supabase projects api-keys --project-ref "$BRANCH_REF" -o json)
-          ANON_KEY=$(echo "$API_KEYS" | jq -r '.[] | select(.name=="anon") | .api_key')
+          # Extract SUPABASE_ANON_KEY directly from the response
+          ANON_KEY=$(echo "$BRANCH_INFO" | jq -r '.SUPABASE_ANON_KEY')
+          echo "Extracted SUPABASE_ANON_KEY: [REDACTED - length=${#ANON_KEY}]"
           
           if [ "$ANON_KEY" = "null" ] || [ -z "$ANON_KEY" ]; then
-            echo "Error: Could not retrieve anon key"
-            echo "API keys returned: $API_KEYS"
+            echo ""
+            echo "ERROR: Could not extract SUPABASE_ANON_KEY from response"
+            echo "Expected JSON to have .SUPABASE_ANON_KEY field"
+            echo "Available keys in response:"
+            echo "$BRANCH_INFO" | jq -r 'keys[]'
             exit 1
           fi
           
-          echo "SUPABASE_URL=https://${BRANCH_REF}.supabase.co" >> $GITHUB_ENV
+          echo "SUPABASE_URL=${SUPABASE_URL}" >> $GITHUB_ENV
           echo "SUPABASE_ANON_KEY=${ANON_KEY}" >> $GITHUB_ENV
+          
+          echo ""
+          echo "============================================"
           echo "✓ Successfully retrieved preview branch credentials"
+          echo "============================================"
 
       - name: Set up environment (PR)
         if: github.event_name == 'pull_request'
