@@ -47,46 +47,62 @@ jobs:
         run: |
           set -euo pipefail
           
-          # Find project ref for hello-you
-          PROJECT_REF=$(curl -s -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
-            https://api.supabase.com/v1/projects | \
-            jq -r '.[] | select(.name=="hello-you-dev") | .id' | head -1)
+          echo "=== Finding Supabase project ==="
+          PROJECTS=$(curl -s -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
+            https://api.supabase.com/v1/projects)
+          echo "Projects response: $PROJECTS" | jq '.' || echo "$PROJECTS"
+          
+          PROJECT_REF=$(echo "$PROJECTS" | jq -r '.[] | select(.name=="hello-you-dev") | .id' | head -1)
           
           if [ -z "$PROJECT_REF" ]; then
             echo "Error: Could not find hello-you-dev project"
             exit 1
           fi
-          echo "Found project ref: $PROJECT_REF"
+          echo "✓ Found project ref: $PROJECT_REF"
           
           # Wait for preview branch to be ready
           BRANCH_NAME="${{ github.head_ref }}"
-          echo "Waiting for preview branch '$BRANCH_NAME' to be ready..."
+          echo ""
+          echo "=== Waiting for preview branch '$BRANCH_NAME' to be ready ==="
           
           for i in {1..12}; do
+            echo ""
+            echo "Attempt $i/12..."
             RESPONSE=$(curl -s -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
               "https://api.supabase.com/v1/projects/${PROJECT_REF}/branches/${BRANCH_NAME}" || echo '{}')
             
+            echo "Raw API response:"
+            echo "$RESPONSE" | jq '.' || echo "$RESPONSE"
+            
             STATUS=$(echo "$RESPONSE" | jq -r '.status // empty')
+            echo "Parsed status: '$STATUS'"
             
             if [ "$STATUS" = "HEALTHY" ]; then
-              echo "✓ Preview branch is ready"
+              echo ""
+              echo "✓ Preview branch is ready!"
               
-              # Extract credentials from branch response
-              echo "$RESPONSE" | jq -r '.db_url, .anon_key' | {
-                read POSTGRES_URL
-                read ANON_KEY
-                echo "POSTGRES_URL_NON_POOLING=${POSTGRES_URL}" >> $GITHUB_ENV
-                echo "SUPABASE_URL=$(echo ${POSTGRES_URL} | sed 's|/postgres$||')" >> $GITHUB_ENV
-                echo "SUPABASE_ANON_KEY=${ANON_KEY}" >> $GITHUB_ENV
-              }
+              # Extract credentials - show what we're getting
+              POSTGRES_URL=$(echo "$RESPONSE" | jq -r '.db_url // empty')
+              ANON_KEY=$(echo "$RESPONSE" | jq -r '.anon_key // empty')
+              
+              echo "Extracted credentials:"
+              echo "  POSTGRES_URL: ${POSTGRES_URL:0:50}..."
+              echo "  ANON_KEY: ${ANON_KEY:0:20}..."
+              
+              echo "POSTGRES_URL_NON_POOLING=${POSTGRES_URL}" >> $GITHUB_ENV
+              echo "SUPABASE_URL=$(echo ${POSTGRES_URL} | sed 's|/postgres$||')" >> $GITHUB_ENV
+              echo "SUPABASE_ANON_KEY=${ANON_KEY}" >> $GITHUB_ENV
               exit 0
             fi
             
-            echo "Branch status: ${STATUS:-pending} (attempt $i/12)"
-            sleep 5
+            if [ $i -lt 12 ]; then
+              echo "Status not ready, sleeping 5 seconds..."
+              sleep 5
+            fi
           done
           
-          echo "✗ Timeout waiting for branch readiness"
+          echo ""
+          echo "✗ Timeout after 60 seconds - branch never became HEALTHY"
           exit 1
 
       - name: Smoke checks (DB/Auth/Storage)
