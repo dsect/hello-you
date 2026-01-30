@@ -31,7 +31,7 @@ jobs:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: |
           echo "Waiting for Supabase branch '$GITHUB_HEAD_REF' to be ready..."
-          for i in {1..120}; do
+          for i in {1..12}; do
             STATUS=$(supabase --experimental branches status "$GITHUB_HEAD_REF" --json 2>/dev/null | jq -r '.status // empty')
             if [ "$STATUS" = "ready" ]; then
               echo "✓ Preview branch is ready"
@@ -42,10 +42,10 @@ jobs:
               echo "✗ Branch provisioning failed"
               exit 1
             fi
-            echo "Branch status: ${STATUS:-pending} (attempt $i/120)"
+            echo "Branch status: ${STATUS:-pending} (attempt $i/12)"
             sleep 5
           done
-          echo "✗ Timeout waiting for branch readiness"
+          echo "✗ Timeout after 60 seconds - branch may not exist yet"
           exit 1
 
   build-and-test:
