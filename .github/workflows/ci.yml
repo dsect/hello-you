@@ -12,19 +12,22 @@ jobs:
   build-and-test:
     name: Build and Test
     runs-on: ubuntu-latest
+    env:
+      WORKDIR_APP: apps/web
+      WORKDIR_SUPABASE: apps/web/supabase
     defaults:
       run:
-        working-directory: apps/web
+        working-directory: ${{ env.WORKDIR_APP }}
 
     steps:
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
 
-      # ubuntu-latest has Node 20 as default, but Node 22 is cached locally
-      # setup-node just symlinks to it (no download)
       - name: Use Node.js 22
         uses: actions/setup-node@395ad3262231945c25e8478fd5baf05154b1d79f # v6.1.0
         with:
           node-version: 22
+          cache: 'npm'
+          cache-dependency-path: ${{ env.WORKDIR_APP }}/package-lock.json
 
       - name: Install dependencies
         run: npm ci
@@ -39,66 +42,29 @@ jobs:
         run: npm run build
 
       # --- Supabase Preview Branch Setup (PRs only) ---
-      # Wait for "Supabase Preview" check using GitHub CLI (more trustworthy than third-party actions)
       - name: Wait for Supabase Preview check to complete
         if: github.event_name == 'pull_request'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          
           COMMIT_SHA="${{ github.event.pull_request.head.sha }}"
-          echo "Waiting for Supabase Preview check on commit $COMMIT_SHA..."
-          echo ""
-          
+          echo "Waiting for Supabase Preview check on $COMMIT_SHA"
           for i in {1..12}; do
-            echo "=== Attempt $i/12 ==="
-            
-            # Get all check runs for this commit
             CHECKS=$(gh api repos/${{ github.repository }}/commits/${COMMIT_SHA}/check-runs)
-            echo "Available checks:"
-            echo "$CHECKS" | jq -r '.check_runs[] | "  - \(.name): status=\(.status) conclusion=\(.conclusion)"'
-            
-            echo ""
-            
-            # Find the Supabase Preview check
             RESPONSE=$(echo "$CHECKS" | jq '.check_runs[] | select(.name=="Supabase Preview")')
-            
-            if [ -z "$RESPONSE" ] || [ "$RESPONSE" = "null" ]; then
-              echo "Supabase Preview check not found yet"
-              if [ $i -lt 12 ]; then
-                echo "Sleeping 5 seconds..."
-                sleep 5
-              fi
-              continue
-            fi
-            
-            STATUS=$(echo "$RESPONSE" | jq -r '.status')
-            CONCLUSION=$(echo "$RESPONSE" | jq -r '.conclusion')
-            
-            echo "Supabase Preview check:"
-            echo "  Status: $STATUS"
-            echo "  Conclusion: $CONCLUSION"
-            echo ""
-            
-            if [ "$STATUS" = "completed" ]; then
-              if [ "$CONCLUSION" = "success" ]; then
-                echo "✓ Supabase Preview check PASSED"
+            if [ -n "$RESPONSE" ] && [ "$RESPONSE" != "null" ]; then
+              STATUS=$(echo "$RESPONSE" | jq -r '.status')
+              CONCLUSION=$(echo "$RESPONSE" | jq -r '.conclusion')
+              echo "Status=$STATUS conclusion=$CONCLUSION"
+              if [ "$STATUS" = "completed" ]; then
+                [ "$CONCLUSION" = "success" ]
                 exit 0
-              else
-                echo "✗ Supabase Preview check FAILED with conclusion: $CONCLUSION"
-                exit 1
               fi
             fi
-            
-            if [ $i -lt 12 ]; then
-              echo "Check still in progress, sleeping 5 seconds..."
-              sleep 5
-            fi
+            sleep 5
           done
-          
-          echo ""
-          echo "✗ TIMEOUT after 60 seconds - Supabase Preview check never completed"
+          echo "Timeout waiting for Supabase Preview check"
           exit 1
 
       - name: Install Supabase CLI
@@ -113,59 +79,30 @@ jobs:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: |
           set -euo pipefail
-          
           BRANCH_NAME="${{ github.head_ref }}"
           PROJECT_REF="${{ secrets.SUPABASE_DEV_PROJECT_ID }}"
-          
-          echo "============================================"
-          echo "Fetching credentials for preview branch"
-          echo "============================================"
-          echo "Branch name: $BRANCH_NAME"
-          echo "Project ref: $PROJECT_REF"
-          echo ""
-          
-          # Get branch details using Supabase CLI
-          echo "Running: supabase branches get \"$BRANCH_NAME\" --project-ref \"$PROJECT_REF\" -o json"
           BRANCH_INFO=$(supabase branches get "$BRANCH_NAME" --project-ref "$PROJECT_REF" -o json)
-          
-          echo ""
-          echo "Raw response from supabase branches get:"
-          echo "$BRANCH_INFO" | jq '.'
-          echo ""
-          
-          # Extract SUPABASE_URL directly from the response
           SUPABASE_URL=$(echo "$BRANCH_INFO" | jq -r '.SUPABASE_URL')
-          echo "Extracted SUPABASE_URL: $SUPABASE_URL"
-          
-          if [ "$SUPABASE_URL" = "null" ] || [ -z "$SUPABASE_URL" ]; then
-            echo ""
-            echo "ERROR: Could not extract SUPABASE_URL from response"
-            echo "Expected JSON to have .SUPABASE_URL field"
-            echo "Available keys in response:"
-            echo "$BRANCH_INFO" | jq -r 'keys[]'
-            exit 1
+          SUPABASE_ANON_KEY=$(echo "$BRANCH_INFO" | jq -r '.SUPABASE_ANON_KEY')
+          if [ -z "$SUPABASE_URL" ] || [ "$SUPABASE_URL" = "null" ]; then
+            echo "Could not get SUPABASE_URL"; exit 1
           fi
-          
-          # Extract SUPABASE_ANON_KEY directly from the response
-          ANON_KEY=$(echo "$BRANCH_INFO" | jq -r '.SUPABASE_ANON_KEY')
-          echo "Extracted SUPABASE_ANON_KEY: [REDACTED - length=${#ANON_KEY}]"
-          
-          if [ "$ANON_KEY" = "null" ] || [ -z "$ANON_KEY" ]; then
-            echo ""
-            echo "ERROR: Could not extract SUPABASE_ANON_KEY from response"
-            echo "Expected JSON to have .SUPABASE_ANON_KEY field"
-            echo "Available keys in response:"
-            echo "$BRANCH_INFO" | jq -r 'keys[]'
-            exit 1
+          if [ -z "$SUPABASE_ANON_KEY" ] || [ "$SUPABASE_ANON_KEY" = "null" ]; then
+            echo "Could not get SUPABASE_ANON_KEY"; exit 1
           fi
-          
-          echo "SUPABASE_URL=${SUPABASE_URL}" >> $GITHUB_ENV
-          echo "SUPABASE_ANON_KEY=${ANON_KEY}" >> $GITHUB_ENV
-          
-          echo ""
-          echo "============================================"
-          echo "✓ Successfully retrieved preview branch credentials"
-          echo "============================================"
+          echo "SUPABASE_URL=$SUPABASE_URL" >> $GITHUB_ENV
+          echo "SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY" >> $GITHUB_ENV
+
+      - name: Reset and seed preview DB
+        if: github.event_name == 'pull_request'
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          set -euo pipefail
+          # Run from repo root so --workdir resolves correctly
+          pushd $GITHUB_WORKSPACE >/dev/null
+          supabase db reset --workdir "$WORKDIR_SUPABASE"
+          popd >/dev/null
 
       - name: Set up environment (PR)
         if: github.event_name == 'pull_request'
@@ -180,10 +117,6 @@ jobs:
           echo "VITE_SUPABASE_ANON_KEY=${{ secrets.SUPABASE_DEV_ANON_KEY }}" >> .env.local
 
       # --- E2E Tests ---
-      # Playwright needs:
-      # 1. Its own browser binaries (patched versions, not system Chrome/Firefox)
-      # 2. System dependencies (--with-deps: fonts, libs, etc.)
-      # Takes ~45s but necessary for hermetic test environment
       - name: Install Playwright browsers
         run: npx playwright install --with-deps
 
