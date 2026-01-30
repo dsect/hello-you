@@ -9,50 +9,9 @@ on:
     branches: [main]
 
 jobs:
-  # Gate: wait until Supabase preview branch is fully provisioned
-  # Pattern from: https://supabase.com/docs/guides/deployment/branching
-  wait-for-preview:
-    name: Wait for Preview Branch
-    runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
-    outputs:
-      ready: ${{ steps.gate.outputs.ready }}
-    steps:
-      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
-
-      - name: Setup Supabase CLI
-        uses: supabase/setup-cli@b60b5899c73b63a2d2d651b1e90db8d4c9392f51 # v1.6.0
-        with:
-          version: latest
-
-      - name: Wait until Supabase preview branch is ready
-        id: gate
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-        run: |
-          echo "Waiting for Supabase branch '$GITHUB_HEAD_REF' to be ready..."
-          for i in {1..12}; do
-            STATUS=$(supabase --experimental branches status "$GITHUB_HEAD_REF" --json 2>/dev/null | jq -r '.status // empty')
-            if [ "$STATUS" = "ready" ]; then
-              echo "✓ Preview branch is ready"
-              echo "ready=true" >> "$GITHUB_OUTPUT"
-              exit 0
-            fi
-            if [ "$STATUS" = "failed" ]; then
-              echo "✗ Branch provisioning failed"
-              exit 1
-            fi
-            echo "Branch status: ${STATUS:-pending} (attempt $i/12)"
-            sleep 5
-          done
-          echo "✗ Timeout after 60 seconds - branch may not exist yet"
-          exit 1
-
   build-and-test:
     name: Build and Test
     runs-on: ubuntu-latest
-    needs: wait-for-preview
-    if: github.event_name == 'push' || (github.event_name == 'pull_request' && needs.wait-for-preview.outputs.ready == 'true')
     defaults:
       run:
         working-directory: apps/web
