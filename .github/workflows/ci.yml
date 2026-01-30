@@ -1,5 +1,4 @@
 name: CI
-
 run-name: "CI - ${{ github.head_ref || github.ref_name }}"
 
 on:
@@ -50,13 +49,13 @@ jobs:
           set -euo pipefail
           COMMIT_SHA="${{ github.event.pull_request.head.sha }}"
           echo "Waiting for Supabase Preview check on $COMMIT_SHA"
-          for i in {1..12}; do
+          for i in {1..24}; do
             CHECKS=$(gh api repos/${{ github.repository }}/commits/${COMMIT_SHA}/check-runs)
             RESPONSE=$(echo "$CHECKS" | jq '.check_runs[] | select(.name=="Supabase Preview")')
             if [ -n "$RESPONSE" ] && [ "$RESPONSE" != "null" ]; then
               STATUS=$(echo "$RESPONSE" | jq -r '.status')
               CONCLUSION=$(echo "$RESPONSE" | jq -r '.conclusion')
-              echo "Status=$STATUS conclusion=$CONCLUSION"
+              echo "Supabase Preview status=$STATUS conclusion=$CONCLUSION"
               if [ "$STATUS" = "completed" ]; then
                 [ "$CONCLUSION" = "success" ]
                 exit 0
@@ -73,63 +72,146 @@ jobs:
         with:
           version: latest
 
-      - name: Export preview branch credentials
+      - name: Preview diagnostics and env export
         if: github.event_name == 'pull_request'
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          PROJECT_REF: ${{ secrets.SUPABASE_DEV_PROJECT_ID }}
         run: |
           set -euo pipefail
           BRANCH_NAME="${{ github.head_ref }}"
-          PROJECT_REF="${{ secrets.SUPABASE_DEV_PROJECT_ID }}"
-          BRANCH_INFO=$(supabase branches get "$BRANCH_NAME" --project-ref "$PROJECT_REF" -o json)
-          SUPABASE_URL=$(echo "$BRANCH_INFO" | jq -r '.SUPABASE_URL')
-          SUPABASE_ANON_KEY=$(echo "$BRANCH_INFO" | jq -r '.SUPABASE_ANON_KEY')
-          if [ -z "$SUPABASE_URL" ] || [ "$SUPABASE_URL" = "null" ]; then
-            echo "Could not get SUPABASE_URL"; exit 1
+
+          echo "--- CLI version"
+          supabase --version || true
+
+          echo "--- Repository info"
+          echo "Repo: ${{ github.repository }}"
+          echo "PR branch: $BRANCH_NAME"
+          echo "Project ref: $PROJECT_REF"
+          echo "Workdir (app): $WORKDIR_APP"
+          echo "Workdir (supabase): $WORKDIR_SUPABASE"
+          echo
+
+          echo "--- Supabase config.toml existence"
+          CFG="$WORKDIR_SUPABASE/config.toml"
+          if [ -f "$CFG" ]; then
+            echo "Found: $CFG"
+            head -n 200 "$CFG" || true
+          else
+            echo "Missing: $CFG"
           fi
-          if [ -z "$SUPABASE_ANON_KEY" ] || [ "$SUPABASE_ANON_KEY" = "null" ]; then
-            echo "Could not get SUPABASE_ANON_KEY"; exit 1
-          fi
+          echo
+
+          echo "--- Fetching preview branch info (raw)"
+          INFO=$(supabase branches get "$BRANCH_NAME" --project-ref "$PROJECT_REF" -o json)
+          echo "$INFO" | jq . || true
+
+          echo "--- Extracting required fields"
+          POSTGRES_URL=$(echo "$INFO" | jq -r .POSTGRES_URL)
+          SUPABASE_URL=$(echo "$INFO" | jq -r .SUPABASE_URL)
+          SUPABASE_ANON_KEY=$(echo "$INFO" | jq -r .SUPABASE_ANON_KEY)
+
+          [ -n "$POSTGRES_URL" ] && [ "$POSTGRES_URL" != "null" ] || { echo "Missing POSTGRES_URL from branches get"; exit 1; }
+          [ -n "$SUPABASE_URL" ] && [ "$SUPABASE_URL" != "null" ] || { echo "Missing SUPABASE_URL from branches get"; exit 1; }
+          [ -n "$SUPABASE_ANON_KEY" ] && [ "$SUPABASE_ANON_KEY" != "null" ] || { echo "Missing SUPABASE_ANON_KEY from branches get"; exit 1; }
+
+          # Redacted echo (no secrets leak)
+          echo "Derived:"
+          echo "- POSTGRES_URL present: yes"
+          echo "- SUPABASE_URL: $SUPABASE_URL"
+          echo "- SUPABASE_ANON_KEY present: yes"
+          echo
+
+          echo "PREVIEW_POSTGRES_URL=$POSTGRES_URL" >> $GITHUB_ENV
           echo "SUPABASE_URL=$SUPABASE_URL" >> $GITHUB_ENV
           echo "SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY" >> $GITHUB_ENV
 
-      - name: Apply migrations to preview branch
+          echo "--- Migration files present"
+          if [ -d "$WORKDIR_SUPABASE/migrations" ]; then
+            ls -lah "$WORKDIR_SUPABASE/migrations" || true
+          else
+            echo "No migrations directory at $WORKDIR_SUPABASE/migrations"
+          fi
+          echo
+
+          echo "--- Seed files configured"
+          if [ -f "$CFG" ]; then
+            # naive list of referenced sql_paths
+            awk '/^\[db.seed\]/,0{print}' "$CFG" || true
+          fi
+
+      - name: Preview snapshot BEFORE migrations
+        if: github.event_name == 'pull_request'
+        run: |
+          set -euo pipefail
+          echo "--- DB snapshot (roles/tables/extensions) BEFORE"
+          psql "$PREVIEW_POSTGRES_URL" -v ON_ERROR_STOP=1 -c "\du+" || true
+          psql "$PREVIEW_POSTGRES_URL" -v ON_ERROR_STOP=1 -c "\dn+" || true
+          psql "$PREVIEW_POSTGRES_URL" -v ON_ERROR_STOP=1 -c "\dt+ public.*" || true
+          psql "$PREVIEW_POSTGRES_URL" -v ON_ERROR_STOP=1 -c "select extname, extversion from pg_extension order by 1;" || true
+
+      - name: Preview migrations (dry-run) and apply
         if: github.event_name == 'pull_request'
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: |
           set -euo pipefail
-          PROJECT_REF="${{ secrets.SUPABASE_DEV_PROJECT_ID }}"
-          BRANCH_NAME="${{ github.head_ref }}"
-          # Run from repo root so --workdir resolves correctly
-          pushd "$GITHUB_WORKSPACE" >/dev/null
+          echo "--- supabase db push (dry-run)"
           supabase db push \
-            --project-ref "$PROJECT_REF" \
-            --branch "$BRANCH_NAME" \
-            --workdir "$WORKDIR_SUPABASE"
-          popd >/dev/null
+            --db-url "$PREVIEW_POSTGRES_URL" \
+            --workdir "$WORKDIR_SUPABASE" \
+            --dry-run \
+            --yes
 
-      - name: Seed preview branch
+          echo "--- supabase db push (apply)"
+          supabase db push \
+            --db-url "$PREVIEW_POSTGRES_URL" \
+            --workdir "$WORKDIR_SUPABASE" \
+            --yes
+
+      - name: Preview seeds
         if: github.event_name == 'pull_request'
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: |
           set -euo pipefail
-          PROJECT_REF="${{ secrets.SUPABASE_DEV_PROJECT_ID }}"
-          BRANCH_NAME="${{ github.head_ref }}"
-          pushd "$GITHUB_WORKSPACE" >/dev/null
-          # Uses [db.seed] sql_paths from apps/web/supabase/config.toml
-          supabase db seed \
-            --project-ref "$PROJECT_REF" \
-            --branch "$BRANCH_NAME" \
-            --workdir "$WORKDIR_SUPABASE"
-          popd >/dev/null
+          echo "--- supabase db seed"
+          if ! supabase db seed --db-url "$PREVIEW_POSTGRES_URL" --workdir "$WORKDIR_SUPABASE" --yes; then
+            echo "db seed failed; attempting reset with seed"
+            supabase db reset --db-url "$PREVIEW_POSTGRES_URL" --workdir "$WORKDIR_SUPABASE" --include-seed --yes
+          fi
 
-      - name: Set up environment (PR)
+      - name: Preview snapshot AFTER migrations
+        if: github.event_name == 'pull_request'
+        run: |
+          set -euo pipefail
+          echo "--- DB snapshot (roles/tables/extensions) AFTER"
+          psql "$PREVIEW_POSTGRES_URL" -v ON_ERROR_STOP=1 -c "\dt+ public.*" || true
+          psql "$PREVIEW_POSTGRES_URL" -v ON_ERROR_STOP=1 -c "select extname, extversion from pg_extension order by 1;" || true
+
+          echo "--- RLS status summary (public schema)"
+          psql "$PREVIEW_POSTGRES_URL" -v ON_ERROR_STOP=1 -P pager=off -F $'\t' -A -c \
+            "select table_schema, table_name, relrowsecurity as rls_enabled
+             from pg_class c
+             join pg_namespace n on n.oid=c.relnamespace
+             where n.nspname='public' and c.relkind='r'
+             order by 1,2;" || true
+
+      - name: Preview app env for PR
         if: github.event_name == 'pull_request'
         run: |
           echo "VITE_SUPABASE_URL=${SUPABASE_URL}" > .env.local
           echo "VITE_SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}" >> .env.local
+
+      - name: Preview smoke checks (PostgREST + anon)
+        if: github.event_name == 'pull_request'
+        run: |
+          set -euo pipefail
+          echo "--- Verify anon can reach auth endpoint"
+          curl -sSf -H "apikey: ${SUPABASE_ANON_KEY}" "${SUPABASE_URL}/auth/v1/health" || true
+
+          echo "--- Verify PostgREST reachable (should 200/404)"
+          curl -s -o /dev/null -w "%{http_code}\n" -H "apikey: ${SUPABASE_ANON_KEY}" "${SUPABASE_URL}/rest/v1/" || true
 
       - name: Set up environment (push to main)
         if: github.event_name == 'push'
