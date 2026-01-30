@@ -49,35 +49,57 @@ jobs:
           
           COMMIT_SHA="${{ github.event.pull_request.head.sha }}"
           echo "Waiting for Supabase Preview check on commit $COMMIT_SHA..."
+          echo ""
           
           for i in {1..12}; do
-            echo "Attempt $i/12..."
+            echo "=== Attempt $i/12 ==="
             
-            RESPONSE=$(gh api repos/${{ github.repository }}/commits/${COMMIT_SHA}/check-runs \
-              --jq '.check_runs[] | select(.name=="Supabase / Supabase Preview") | {name, status, conclusion}' || echo '{}')
+            # Get all check runs for this commit
+            CHECKS=$(gh api repos/${{ github.repository }}/commits/${COMMIT_SHA}/check-runs)
+            echo "Available checks:"
+            echo "$CHECKS" | jq -r '.check_runs[] | "  - \(.name): status=\(.status) conclusion=\(.conclusion)"'
             
-            echo "Response: $RESPONSE"
+            echo ""
             
-            STATUS=$(echo "$RESPONSE" | jq -r '.status // empty' || echo '')
-            CONCLUSION=$(echo "$RESPONSE" | jq -r '.conclusion // empty' || echo '')
+            # Find the Supabase Preview check
+            RESPONSE=$(echo "$CHECKS" | jq '.check_runs[] | select(.name=="Supabase Preview")')
             
-            echo "  Status: $STATUS, Conclusion: $CONCLUSION"
-            
-            if [ "$STATUS" = "completed" ] && [ "$CONCLUSION" = "success" ]; then
-              echo "✓ Supabase Preview check passed"
-              break
+            if [ -z "$RESPONSE" ] || [ "$RESPONSE" = "null" ]; then
+              echo "Supabase Preview check not found yet"
+              if [ $i -lt 12 ]; then
+                echo "Sleeping 5 seconds..."
+                sleep 5
+              fi
+              continue
             fi
             
-            if [ "$STATUS" = "completed" ] && [ "$CONCLUSION" != "success" ]; then
-              echo "✗ Supabase Preview check failed with conclusion: $CONCLUSION"
-              exit 1
+            STATUS=$(echo "$RESPONSE" | jq -r '.status')
+            CONCLUSION=$(echo "$RESPONSE" | jq -r '.conclusion')
+            
+            echo "Supabase Preview check:"
+            echo "  Status: $STATUS"
+            echo "  Conclusion: $CONCLUSION"
+            echo ""
+            
+            if [ "$STATUS" = "completed" ]; then
+              if [ "$CONCLUSION" = "success" ]; then
+                echo "✓ Supabase Preview check PASSED"
+                exit 0
+              else
+                echo "✗ Supabase Preview check FAILED with conclusion: $CONCLUSION"
+                exit 1
+              fi
             fi
             
             if [ $i -lt 12 ]; then
-              echo "Check not completed yet, sleeping 5 seconds..."
+              echo "Check still in progress, sleeping 5 seconds..."
               sleep 5
             fi
           done
+          
+          echo ""
+          echo "✗ TIMEOUT after 60 seconds - Supabase Preview check never completed"
+          exit 1
 
       - name: Export preview branch credentials
         if: github.event_name == 'pull_request'
