@@ -93,15 +93,36 @@ jobs:
           echo "SUPABASE_URL=$SUPABASE_URL" >> $GITHUB_ENV
           echo "SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY" >> $GITHUB_ENV
 
-      - name: Reset and seed preview DB
+      - name: Apply migrations to preview branch
         if: github.event_name == 'pull_request'
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: |
           set -euo pipefail
+          PROJECT_REF="${{ secrets.SUPABASE_DEV_PROJECT_ID }}"
+          BRANCH_NAME="${{ github.head_ref }}"
           # Run from repo root so --workdir resolves correctly
-          pushd $GITHUB_WORKSPACE >/dev/null
-          supabase db reset --workdir "$WORKDIR_SUPABASE"
+          pushd "$GITHUB_WORKSPACE" >/dev/null
+          supabase db push \
+            --project-ref "$PROJECT_REF" \
+            --branch "$BRANCH_NAME" \
+            --workdir "$WORKDIR_SUPABASE"
+          popd >/dev/null
+
+      - name: Seed preview branch
+        if: github.event_name == 'pull_request'
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          set -euo pipefail
+          PROJECT_REF="${{ secrets.SUPABASE_DEV_PROJECT_ID }}"
+          BRANCH_NAME="${{ github.head_ref }}"
+          pushd "$GITHUB_WORKSPACE" >/dev/null
+          # Uses [db.seed] sql_paths from apps/web/supabase/config.toml
+          supabase db seed \
+            --project-ref "$PROJECT_REF" \
+            --branch "$BRANCH_NAME" \
+            --workdir "$WORKDIR_SUPABASE"
           popd >/dev/null
 
       - name: Set up environment (PR)
