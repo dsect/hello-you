@@ -39,71 +39,65 @@ jobs:
         run: npm run build
 
       # --- Supabase Preview Branch Setup (PRs only) ---
-      # Use Management API directly (no CLI linking needed, just token + project ID)
-      - name: Wait for preview branch and get credentials
+      # Wait for "Supabase Preview" check using GitHub CLI (more trustworthy than third-party actions)
+      - name: Wait for Supabase Preview check to complete
+        if: github.event_name == 'pull_request'
+        run: |
+          set -euo pipefail
+          
+          COMMIT_SHA="${{ github.event.pull_request.head.sha }}"
+          echo "Waiting for Supabase Preview check on commit $COMMIT_SHA..."
+          
+          for i in {1..12}; do
+            echo "Attempt $i/12..."
+            
+            RESPONSE=$(gh api repos/${{ github.repository }}/commits/${COMMIT_SHA}/check-runs \
+              --jq '.check_runs[] | select(.name=="Supabase / Supabase Preview") | {name, status, conclusion}' || echo '{}')
+            
+            echo "Response: $RESPONSE"
+            
+            STATUS=$(echo "$RESPONSE" | jq -r '.status // empty' || echo '')
+            CONCLUSION=$(echo "$RESPONSE" | jq -r '.conclusion // empty' || echo '')
+            
+            echo "  Status: $STATUS, Conclusion: $CONCLUSION"
+            
+            if [ "$STATUS" = "completed" ] && [ "$CONCLUSION" = "success" ]; then
+              echo "✓ Supabase Preview check passed"
+              break
+            fi
+            
+            if [ "$STATUS" = "completed" ] && [ "$CONCLUSION" != "success" ]; then
+              echo "✗ Supabase Preview check failed with conclusion: $CONCLUSION"
+              exit 1
+            fi
+            
+            if [ $i -lt 12 ]; then
+              echo "Check not completed yet, sleeping 5 seconds..."
+              sleep 5
+            fi
+          done
+
+      - name: Export preview branch credentials
         if: github.event_name == 'pull_request'
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: |
-          set -euo pipefail
-          
-          echo "=== Finding Supabase project ==="
-          PROJECTS=$(curl -s -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
-            https://api.supabase.com/v1/projects)
-          echo "Projects response: $PROJECTS" | jq '.' || echo "$PROJECTS"
-          
-          PROJECT_REF=$(echo "$PROJECTS" | jq -r '.[] | select(.name=="hello-you-dev") | .id' | head -1)
-          
-          if [ -z "$PROJECT_REF" ]; then
-            echo "Error: Could not find hello-you-dev project"
-            exit 1
-          fi
-          echo "✓ Found project ref: $PROJECT_REF"
-          
-          # Wait for preview branch to be ready
+          # Find the project and extract preview branch URL from the branch
+          PROJECTS=$(curl -s -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" https://api.supabase.com/v1/projects)
+          PROJECT_REF=$(echo "$PROJECTS" | jq -r '.[] | select(.name=="hello-you-dev") | .id')
           BRANCH_NAME="${{ github.head_ref }}"
-          echo ""
-          echo "=== Waiting for preview branch '$BRANCH_NAME' to be ready ==="
           
-          for i in {1..12}; do
-            echo ""
-            echo "Attempt $i/12..."
-            RESPONSE=$(curl -s -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
-              "https://api.supabase.com/v1/projects/${PROJECT_REF}/branches/${BRANCH_NAME}" || echo '{}')
-            
-            echo "Raw API response:"
-            echo "$RESPONSE" | jq '.' || echo "$RESPONSE"
-            
-            STATUS=$(echo "$RESPONSE" | jq -r '.status // empty')
-            echo "Parsed status: '$STATUS'"
-            
-            if [ "$STATUS" = "HEALTHY" ]; then
-              echo ""
-              echo "✓ Preview branch is ready!"
-              
-              # Extract credentials - show what we're getting
-              POSTGRES_URL=$(echo "$RESPONSE" | jq -r '.db_url // empty')
-              ANON_KEY=$(echo "$RESPONSE" | jq -r '.anon_key // empty')
-              
-              echo "Extracted credentials:"
-              echo "  POSTGRES_URL: ${POSTGRES_URL:0:50}..."
-              echo "  ANON_KEY: ${ANON_KEY:0:20}..."
-              
-              echo "POSTGRES_URL_NON_POOLING=${POSTGRES_URL}" >> $GITHUB_ENV
-              echo "SUPABASE_URL=$(echo ${POSTGRES_URL} | sed 's|/postgres$||')" >> $GITHUB_ENV
-              echo "SUPABASE_ANON_KEY=${ANON_KEY}" >> $GITHUB_ENV
-              exit 0
-            fi
-            
-            if [ $i -lt 12 ]; then
-              echo "Status not ready, sleeping 5 seconds..."
-              sleep 5
-            fi
-          done
+          # Get preview branch info
+          BRANCH_INFO=$(curl -s -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
+            "https://api.supabase.com/v1/projects/${PROJECT_REF}/branches" | \
+            jq -r ".[] | select(.branch == \"${BRANCH_NAME}\") | {db_url, anon_key}")
           
-          echo ""
-          echo "✗ Timeout after 60 seconds - branch never became HEALTHY"
-          exit 1
+          POSTGRES_URL=$(echo "$BRANCH_INFO" | jq -r '.db_url')
+          ANON_KEY=$(echo "$BRANCH_INFO" | jq -r '.anon_key')
+          
+          echo "POSTGRES_URL_NON_POOLING=${POSTGRES_URL}" >> $GITHUB_ENV
+          echo "SUPABASE_URL=$(echo ${POSTGRES_URL} | sed 's|/postgres$||')" >> $GITHUB_ENV
+          echo "SUPABASE_ANON_KEY=${ANON_KEY}" >> $GITHUB_ENV
 
       - name: Smoke checks (DB/Auth/Storage)
         if: github.event_name == 'pull_request'
