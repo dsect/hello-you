@@ -101,46 +101,47 @@ jobs:
           echo "✗ TIMEOUT after 60 seconds - Supabase Preview check never completed"
           exit 1
 
+      - name: Install Supabase CLI
+        if: github.event_name == 'pull_request'
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
       - name: Export preview branch credentials
         if: github.event_name == 'pull_request'
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
         run: |
           set -euo pipefail
           
           BRANCH_NAME="${{ github.head_ref }}"
+          PROJECT_REF="${{ secrets.SUPABASE_PROD_PROJECT_ID }}"
           echo "Getting credentials for branch: $BRANCH_NAME"
           
-          # Get branch configuration from Supabase Management API
-          BRANCH_CONFIG=$(curl -s \
-            -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
-            "https://api.supabase.com/v1/branches?project_ref=${SUPABASE_PROJECT_REF}" | \
-            jq -r ".[] | select(.git_branch==\"${BRANCH_NAME}\") | {ref}")
-          
-          BRANCH_REF=$(echo "$BRANCH_CONFIG" | jq -r '.ref')
+          # Get branch details using Supabase CLI
+          BRANCH_INFO=$(supabase branches get "$BRANCH_NAME" --project-ref "$PROJECT_REF" -o json)
+          BRANCH_REF=$(echo "$BRANCH_INFO" | jq -r '.ref')
           
           if [ "$BRANCH_REF" = "null" ] || [ -z "$BRANCH_REF" ]; then
-            echo "Error: Could not find branch $BRANCH_NAME in Supabase"
+            echo "Error: Could not find branch $BRANCH_NAME"
+            echo "Branch info returned: $BRANCH_INFO"
             exit 1
           fi
           
           echo "Branch ref: $BRANCH_REF"
           
-          # Get the anon key from the branch's API keys
-          ANON_KEY=$(curl -s \
-            -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
-            "https://api.supabase.com/v1/projects/${BRANCH_REF}/api-keys" | \
-            jq -r '.[] | select(.type=="anon") | .api_key')
+          # Get API keys using Supabase CLI
+          API_KEYS=$(supabase projects api-keys --project-ref "$BRANCH_REF" -o json)
+          ANON_KEY=$(echo "$API_KEYS" | jq -r '.[] | select(.name=="anon") | .api_key')
           
           if [ "$ANON_KEY" = "null" ] || [ -z "$ANON_KEY" ]; then
             echo "Error: Could not retrieve anon key"
+            echo "API keys returned: $API_KEYS"
             exit 1
           fi
           
           echo "SUPABASE_URL=https://${BRANCH_REF}.supabase.co" >> $GITHUB_ENV
           echo "SUPABASE_ANON_KEY=${ANON_KEY}" >> $GITHUB_ENV
-          echo ""
           echo "✓ Successfully retrieved preview branch credentials"
 
       - name: Set up environment (PR)
