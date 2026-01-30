@@ -97,14 +97,6 @@ jobs:
           curl -sf "$SUPABASE_URL/auth/v1/health" >/dev/null
           curl -sf "$SUPABASE_URL/storage/v1/health" >/dev/null
 
-      - name: Bootstrap E2E data (idempotent)
-        if: github.event_name == 'pull_request'
-        run: |
-          # Run existing seed file to ensure test data is present
-          # Supabase only runs seeds when preview branch is first created,
-          # not on subsequent commits. We run it explicitly on every commit.
-          psql "$POSTGRES_URL_NON_POOLING" -v "ON_ERROR_STOP=1" -f supabase/seeds/us_states.sql
-
       - name: Set up environment (PR)
         if: github.event_name == 'pull_request'
         run: |
