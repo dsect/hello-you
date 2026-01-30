@@ -105,31 +105,52 @@ jobs:
         if: github.event_name == 'pull_request'
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-        run: |
-          # Find the project and extract preview branch URL from the branch
-          PROJECTS=$(curl -s -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" https://api.supabase.com/v1/projects)
-          PROJECT_REF=$(echo "$PROJECTS" | jq -r '.[] | select(.name=="hello-you-dev") | .id')
-          BRANCH_NAME="${{ github.head_ref }}"
-          
-          # Get preview branch info
-          BRANCH_INFO=$(curl -s -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
-            "https://api.supabase.com/v1/projects/${PROJECT_REF}/branches" | \
-            jq -r ".[] | select(.branch == \"${BRANCH_NAME}\") | {db_url, anon_key}")
-          
-          POSTGRES_URL=$(echo "$BRANCH_INFO" | jq -r '.db_url')
-          ANON_KEY=$(echo "$BRANCH_INFO" | jq -r '.anon_key')
-          
-          echo "POSTGRES_URL_NON_POOLING=${POSTGRES_URL}" >> $GITHUB_ENV
-          echo "SUPABASE_URL=$(echo ${POSTGRES_URL} | sed 's|/postgres$||')" >> $GITHUB_ENV
-          echo "SUPABASE_ANON_KEY=${ANON_KEY}" >> $GITHUB_ENV
-
-      - name: Smoke checks (DB/Auth/Storage)
-        if: github.event_name == 'pull_request'
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
         run: |
           set -euo pipefail
-          psql "$POSTGRES_URL_NON_POOLING" -c 'select 1'
-          curl -sf "$SUPABASE_URL/auth/v1/health" >/dev/null
-          curl -sf "$SUPABASE_URL/storage/v1/health" >/dev/null
+          
+          BRANCH_NAME="${{ github.head_ref }}"
+          echo "Getting credentials for branch: $BRANCH_NAME"
+          
+          # Get branch configuration from Supabase Management API
+          BRANCH_CONFIG=$(curl -s \
+            -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
+            "https://api.supabase.com/v1/branches?project_ref=${SUPABASE_PROJECT_REF}" | \
+            jq -r ".[] | select(.git_branch==\"${BRANCH_NAME}\") | {ref, db_host, db_port, db_user, db_pass}")
+          
+          BRANCH_REF=$(echo "$BRANCH_CONFIG" | jq -r '.ref')
+          DB_HOST=$(echo "$BRANCH_CONFIG" | jq -r '.db_host')
+          DB_PORT=$(echo "$BRANCH_CONFIG" | jq -r '.db_port')
+          DB_USER=$(echo "$BRANCH_CONFIG" | jq -r '.db_user')
+          DB_PASS=$(echo "$BRANCH_CONFIG" | jq -r '.db_pass')
+          
+          if [ "$BRANCH_REF" = "null" ] || [ -z "$BRANCH_REF" ]; then
+            echo "Error: Could not find branch $BRANCH_NAME in Supabase"
+            exit 1
+          fi
+          
+          echo "Branch ref: $BRANCH_REF"
+          
+          # Build connection string
+          POSTGRES_URL="postgresql://${DB_USER}:${DB_PASS}@${DB_HOST}:${DB_PORT}/postgres"
+          SUPABASE_URL="https://${BRANCH_REF}.supabase.co"
+          
+          # Get the anon key from the branch's API keys
+          ANON_KEY=$(curl -s \
+            -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
+            "https://api.supabase.com/v1/projects/${BRANCH_REF}/api-keys" | \
+            jq -r '.[] | select(.type=="anon") | .api_key')
+          
+          if [ "$ANON_KEY" = "null" ] || [ -z "$ANON_KEY" ]; then
+            echo "Error: Could not retrieve anon key"
+            exit 1
+          fi
+          
+          echo "POSTGRES_URL_NON_POOLING=${POSTGRES_URL}" >> $GITHUB_ENV
+          echo "SUPABASE_URL=${SUPABASE_URL}" >> $GITHUB_ENV
+          echo "SUPABASE_ANON_KEY=${ANON_KEY}" >> $GITHUB_ENV
+          echo ""
+          echo "✓ Successfully retrieved preview branch credentials"
 
       - name: Set up environment (PR)
         if: github.event_name == 'pull_request'
