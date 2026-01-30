@@ -164,23 +164,11 @@ jobs:
             --dry-run \
             --yes
 
-          echo "--- supabase db push (apply)"
+          echo "--- supabase db push (apply with seed)"
           supabase db push \
             --db-url "$PREVIEW_POSTGRES_URL" \
+            --include-seed \
             --yes
-
-      - name: Preview seeds
-        if: github.event_name == 'pull_request'
-        working-directory: apps/web/supabase
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-        run: |
-          set -euo pipefail
-          echo "--- supabase db seed"
-          if ! supabase db seed --db-url "$PREVIEW_POSTGRES_URL" --yes; then
-            echo "db seed failed; attempting reset with seed"
-            supabase db reset --db-url "$PREVIEW_POSTGRES_URL" --include-seed --yes
-          fi
 
       - name: Preview snapshot AFTER migrations
         if: github.event_name == 'pull_request'
